@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 
 from utils import Orientation, try_get_number
-from ast import literal_eval as make_tuple
 from game_constants import *
 
 SHIP_RANKS_DICT = {1: 4, 2: 3, 3: 2, 4: 1}
@@ -18,6 +17,14 @@ class Point:
     @staticmethod
     def fits_field(point):
         return 0 <= point.x < MAP_SIZE and 0 <= point.y < MAP_SIZE
+
+    @staticmethod
+    def normalize_point(point):
+        point.x = point.x if point.x >= 0 else 0
+        point.y = point.y if point.y >= 0 else 0
+        point.x = point.x if point.x < MAP_SIZE else MAP_SIZE - 1
+        point.y = point.y if point.y < MAP_SIZE else MAP_SIZE - 1
+        return point
 
     @staticmethod
     def check_coord(coord):
@@ -83,7 +90,7 @@ class Point:
         return True
 
     def __str__(self):
-        return u"Point ({}, {}) with value {}".format(self.x, self.y, self.value)
+        return u"Point ({}, {}) with value {}".format(self.x + 1, self.y + 1, self.value)
 
     def __eq__(self, other):
         return self.x == other.x and self.y == other.y

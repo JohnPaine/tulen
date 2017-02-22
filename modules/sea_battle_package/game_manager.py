@@ -32,6 +32,7 @@ class GameManager:
     def __call__(self, message, uid, chat_id):
         if not uid:
             uid = message["user_id"]
+        print("__CALL__, uid - {}", uid)
 
         self.uid = uid
         self.chat_id = chat_id
@@ -56,6 +57,7 @@ class GameManager:
         print("Lock acquired!")
 
     def __exit__(self, type, value, traceback):
+        print("__EXIT__, uid - {}", self.uid)
         self.process_bot_turn()
         if self.check_winner():
             print("CHECK WINNER RETURNED TRUE - ENDING GAME SESSION FOR {}!!!!\n\n\n".format(self.uid))
@@ -280,9 +282,10 @@ class GameManager:
         if bot_game:
             team = gc.this_team
             self.send_message(self.uid, self.chat_id, u"Стреляет тюлень...\n")
-            hit_point = _Point(random.randint(0, MAP_SIZE - 1), random.randint(0, MAP_SIZE - 1), -1, -1)
-            while self.is_shot_was_made(hit_point, team):
-                hit_point = _Point(random.randint(0, MAP_SIZE - 1), random.randint(0, MAP_SIZE - 1), -1, -1)
+            hit_point = _Point(random.randint(0, MAP_SIZE - 1), random.randint(0, MAP_SIZE - 1), -1, False)
+            while self.is_shot_was_made(hit_point, team) or not self.is_shot_correct(hit_point, team):
+                hit_point = _Point(random.randint(0, MAP_SIZE - 1), random.randint(0, MAP_SIZE - 1), -1, False)
+                print("\t\tGENERATING NEW POINT - {}!\n".format(hit_point))
         else:
             team = gc.opponent
             coords_str = message[message.index(attack_command) + len(attack_command):]
@@ -308,7 +311,28 @@ class GameManager:
     @staticmethod
     def is_shot_was_made(hit_point, team):
         shot = team.field_of_shots[hit_point.x + hit_point.y * MAP_SIZE]
+        print("\t\tSHOT {} WAS MADE ???? -> {}\n".format(hit_point, shot != Shots.NONE))
         return shot != Shots.NONE
+
+    @staticmethod
+    def is_shot_correct(hit_point, team):
+        print("\n\t\tCHECKING HIT_POINT FOR CORRECTNESS - {}!!!!!!!!!!!\n\n".format(hit_point))
+
+        for i in range(hit_point.y - 1, hit_point.y + 2):
+            for j in range(hit_point.x - 1, hit_point.x + 2):
+                p = _Point.normalize_point(_Point(j, i, hit_point.value, False))
+
+                print("\n\t\tCHECKING POINT p FOR CORRECTNESS - {}\n\n".format(p))
+
+                if team.field_of_shots[p.x + p.y * MAP_SIZE] == Shots.DRAWN:
+
+                    print("\t\tpoint {} --- > INCORRECT!!!!\n\n".format(hit_point))
+
+                    return False
+
+        print("\t\tpoint {} -> Correct!\n\n".format(hit_point))
+
+        return True
 
     def process_shot(self, hit_point, team):
         if self.is_shot_was_made(hit_point, team):
