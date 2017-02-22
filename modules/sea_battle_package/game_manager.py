@@ -45,20 +45,25 @@ class GameManager:
             self.game_context.this_team = self.game_context.create_team(team_name, self.uid)
 
         if self.check_winner():
+            print("CHECK WINNER RETURNED TRUE - ENDING GAME SESSION FOR {}!!!!\n\n\n".format(self.uid))
             self.stop_game_session()
 
         return self
 
     def __enter__(self):
+        print("Acquiring lock...")
         self.lock.acquire()
+        print("Lock acquired!")
 
     def __exit__(self, type, value, traceback):
         self.process_bot_turn()
         if self.check_winner():
+            print("CHECK WINNER RETURNED TRUE - ENDING GAME SESSION FOR {}!!!!\n\n\n".format(self.uid))
             self.stop_game_session()
         self.save()
         self.game_context.save()
         self.lock.release()
+        print("Lock released.")
 
     #   game commands   ================================================================================================
 
@@ -181,7 +186,7 @@ class GameManager:
             ans = u"Загрузил карту:\n"
             img_filename = self.game_context.this_team.print_fields_pic(False)
 
-            print "Uploading sea_battle team {} map", self.game_context.this_team_name
+            # print "Uploading sea_battle team {} map", self.game_context.this_team_name
             msg_attachments = self.vk_user.upload_images_files([img_filename])
             print 'self.chat_id - ', self.chat_id
             print 'self.uid - ', self.uid
@@ -226,7 +231,7 @@ class GameManager:
         # ans += gc.this_team.print_fields_pic(False)
         img_filename = gc.this_team.print_fields_pic(False)
 
-        print "Uploading sea_battle team {} map", gc.this_team_name
+        # print "Uploading sea_battle team {} map", gc.this_team_name
         msg_attachments = self.vk_user.upload_images_files([img_filename])
         self.send_message(message=ans, attachments=msg_attachments, chat_id=self.chat_id, uid=self.uid)
 
@@ -235,7 +240,7 @@ class GameManager:
             # ans += gc.opponent.print_fields_pic(True)
             img_filename = gc.opponent.print_fields_pic(True)
 
-            print "Uploading sea_battle opponent team {} map", gc.op_team_name
+            # print "Uploading sea_battle opponent team {} map", gc.op_team_name
             msg_attachments = self.vk_user.upload_images_files([img_filename])
             self.send_message(message=ans, attachments=msg_attachments, chat_id=self.chat_id, uid=self.uid)
 
@@ -298,12 +303,12 @@ class GameManager:
     def process_drawn_ships(attack_result, ship, team):
         if attack_result == SHOT_DRAWN_SHIP:
             for point in ship.points:
-                team.field_of_shots[point.x + point.y * MAP_SIZE] = 'X'
+                team.field_of_shots[point.x + point.y * MAP_SIZE] = Shots.DRAWN
 
     @staticmethod
     def is_shot_was_made(hit_point, team):
         shot = team.field_of_shots[hit_point.x + hit_point.y * MAP_SIZE]
-        return shot == '.' or shot == 'X'
+        return shot != Shots.NONE
 
     def process_shot(self, hit_point, team):
         if self.is_shot_was_made(hit_point, team):
@@ -312,19 +317,20 @@ class GameManager:
             for ship in team.ships[rank]:
                 was_hit, msg = ship.try_attack(hit_point)
                 if was_hit:
-                    team.field_of_shots[hit_point.x + hit_point.y * MAP_SIZE] = 'X' if msg == SHOT_DRAWN_SHIP else 'x'
+                    team.field_of_shots[hit_point.x + hit_point.y * MAP_SIZE] = Shots.DRAWN if msg == SHOT_DRAWN_SHIP else Shots.HIT
                     self.shot_was_made(was_hit)
                 if msg:
                     return msg, ship
-        team.field_of_shots[hit_point.x + hit_point.y * MAP_SIZE] = '.'
+        team.field_of_shots[hit_point.x + hit_point.y * MAP_SIZE] = Shots.MISSED
         return None, None
 
     def process_bot_turn(self):
         if not self.bot_turn:
             return
         result = self.attack("", True)
-        self.send_message(self.uid, self.chat_id, result)
-        self.send_message(self.uid, self.chat_id, self.show_maps(""))
+        self.send_message(uid=self.uid, chat_id=self.chat_id, message=result)
+        # self.send_message(uid=self.uid, chat_id=self.chat_id, message=self.show_maps(""))
+        self.show_maps("")
         self.bot_turn = False
 
     @staticmethod
@@ -405,6 +411,8 @@ class GameManager:
 
     def shot_was_made(self, hit):
         gc = self.game_context
+        if not gc or not gc.this_team:
+            return
         gc.this_team.question_answered = False
         gc.this_team.score += gc.this_team.score_per_hit if hit else 0
         gc.this_team.score_per_hit = 0
@@ -422,7 +430,7 @@ class GameManager:
             del self.teams[team_name]
             return True
         except Exception as e:
-            print "Exception while deleting team {} - {}".format(team_name, e.message)
+            print "Exception while deleting team - {}".format(e.message)
             return False
 
     def is_bot_game(self):
@@ -475,6 +483,7 @@ class GameManager:
                 self.games = data["games"]
                 # self.check_games()
                 self.active_sessions = data["active_sessions"]
+                print("Loaded seabattle_game.yaml, active_sessions count - {}\n".format(len(self.active_sessions)))
         except Exception as e:
             self.teams = {}
             self.games = []
@@ -486,6 +495,7 @@ class GameManager:
             # self.check_games()
             data = {"teams": self.teams, "games": self.games, "active_sessions": self.active_sessions}
             yaml.dump(data, outfile, default_flow_style=True)
+            print("Saved seabattle_game.yaml, active_sessions count - {}\n".format(len(self.active_sessions)))
 
     def session_is_active(self):
         if not self.uid or len(self.active_sessions) == 0:
@@ -499,10 +509,15 @@ class GameManager:
         return False, False
 
     def send_message(self, uid, chat_id, message, attachments=None):
-        if chat_id:
-            self.vk_user.send_message(text=message, userid=None, chatid=chat_id, attachments=attachments)
-        else:
-            self.vk_user.send_message(text=message, userid=uid, chatid=None, attachments=attachments)
+        try:
+            if not message:
+                message = ""
+            if chat_id:
+                self.vk_user.send_message(text=message, chatid=chat_id, attachments=attachments)
+            else:
+                self.vk_user.send_message(text=message, userid=uid, chatid=None, attachments=attachments)
+        except Exception as e:
+            print "Exception occured while sending message, sea_battle.game_manager - {}".format(e.message)
 
     def generate_bot_field(self):
         while True:

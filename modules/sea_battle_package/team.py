@@ -15,7 +15,7 @@ FIELD_PATH = './modules/sea_battle_package/images/field{}.png'
 
 
 def generate_field_of_shots():
-    return ['_' for i in range(MAP_SIZE * MAP_SIZE)]
+    return [Shots.NONE for i in range(MAP_SIZE * MAP_SIZE)]
 
 
 class Team:
@@ -83,7 +83,8 @@ class Team:
                 if not only_shots or (only_shots and ship.check_dead()):
                     Team.place_ship(field_pic,
                                     ship.rank,
-                                    'h' if ship.orientation == Orientation.NONE or ship.orientation == Orientation.HORIZONTAL
+                                    'h' if ship.orientation == Orientation.NONE or
+                                           ship.orientation == Orientation.HORIZONTAL
                                     else 'v',
                                     (ship.get_head_point().x, ship.get_head_point().y))
                 for p in ship.points:
@@ -91,7 +92,7 @@ class Team:
                         Team.place_explosion(field_pic, (p.x, p.y))
         for i in range(MAP_SIZE):
             for j in range(MAP_SIZE):
-                if self.field_of_shots[j + i * MAP_SIZE] == '.':
+                if self.field_of_shots[j + i * MAP_SIZE] == Shots.MISSED:
                     Team.place_water(field_pic, (j, i))
         name = FIELD_PATH.format('_out')
         field_pic.save(name)
@@ -124,7 +125,7 @@ class Team:
                 printed = not only_shots
 
                 if not only_shots:
-                    printed = of_shots[j + i * MAP_SIZE] == '_' and field[j + i * MAP_SIZE] != '0'
+                    printed = of_shots[j + i * MAP_SIZE] == Shots.NONE and field[j + i * MAP_SIZE] != '0'
                     if printed:
                         txt_field += str(field[j + i * MAP_SIZE]) + u"\t"
 
@@ -251,7 +252,7 @@ class Team:
                     was_hit = False
                     if self.field_of_shots is not None and len(self.field_of_shots) == len(field):
                         # '_' for unknown cell, '.' for missed shot, 'x' for hit ship, 'X" for drawn ship
-                        was_hit = self.field_of_shots[j + i * MAP_SIZE] == 'X' or self.field_of_shots[j + i * MAP_SIZE] == 'x'
+                        was_hit = self.field_of_shots[j + i * MAP_SIZE] == Shots.DRAWN or self.field_of_shots[j + i * MAP_SIZE] == Shots.HIT
 
                     point = sp.Point(j, i, int(field[j + i * MAP_SIZE]), was_hit)
                     if not point.value:

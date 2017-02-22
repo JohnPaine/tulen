@@ -206,6 +206,8 @@ return messages;"""
 
         if not attachments:
             attachments = {}
+        if not text:
+            text = u""
 
         op = self.api.messages.send
         try:

@@ -26,6 +26,22 @@ class Processor:
         self.game_manager = sbp.GameManager(vkuser, self.config["questions"], directory)
         print self.config
 
+        # map of request_text - handlers
+        self.mapper = {sbp.start_game_processing_command: self.start_game_session,
+                  # sbp.start_questioned_game_processing_command: self.start_questioned_game_session,
+                  sbp.stop_game_processing_command: self.stop_game_session,
+                  # sbp.answer_command: self.answer,
+                  sbp.gameRequest_command: self.game_request,
+                  sbp.bot_gameRequest_command: self.bot_game_request,
+                  sbp.attack_command: self.attack,
+                  # sbp.questions_command: self.questions,
+                  sbp.loadMap_command: self.load_map,
+                  sbp.loadRandomMap_command: self.load_random_map,
+                  sbp.registerTeam_command: self.register,
+                  sbp.showTeams_command: self.show_teams,
+                  sbp.showGameCommands_command: self.show_commands,
+                  sbp.showMaps_command: self.show_maps}
+
     def start_game_session(self, msg):
         return self.game_manager.start_game_session(msg)
 
@@ -74,22 +90,6 @@ class Processor:
             def call():
                 return ""
 
-        # map of request_text - handlers
-        mapper = {sbp.start_game_processing_command: self.start_game_session,
-                  # sbp.start_questioned_game_processing_command: self.start_questioned_game_session,
-                  sbp.stop_game_processing_command: self.stop_game_session,
-                  # sbp.answer_command: self.answer,
-                  sbp.gameRequest_command: self.game_request,
-                  sbp.bot_gameRequest_command: self.bot_game_request,
-                  sbp.attack_command: self.attack,
-                  # sbp.questions_command: self.questions,
-                  sbp.loadMap_command: self.load_map,
-                  sbp.loadRandomMap_command: self.load_random_map,
-                  sbp.registerTeam_command: self.register,
-                  sbp.showTeams_command: self.show_teams,
-                  sbp.showGameCommands_command: self.show_commands,
-                  sbp.showMaps_command: self.show_maps}
-
         # wrapper for method with param
         def wrapper(funk, msg):
             def call():
@@ -98,16 +98,22 @@ class Processor:
             return call
 
         # return necessary method
-        for k, v in mapper.items():
+        for k, v in self.mapper.items():
             if k in message:
                 return wrapper(v, message)
 
         return dummy
 
     def process_message(self, message, chatid, userid):
+        msg = message["body"].lower()
+        game_command = False
+        for item in self.mapper:
+            if msg.startswith(item):
+                game_command = True
+                break
+        if not game_command:
+            return False
         with self.game_manager(message, userid, chatid):
-            msg = message["body"].lower()
-
             logger.info(msg)
             response_text = self.handler(msg)()
             if response_text:

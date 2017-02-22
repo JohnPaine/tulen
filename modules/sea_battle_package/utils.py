@@ -3,11 +3,13 @@
 
 from game_constants import *
 
+
 def enum(*sequential, **named):
     enums = dict(zip(sequential, range(len(sequential))), **named)
     reverse = dict((value, key) for key, value in enums.iteritems())
     enums['reverse_mapping'] = reverse
     return type('Enum', (), enums)
+
 
 class Orientation:
     def __init__(self):
@@ -17,6 +19,17 @@ class Orientation:
     HORIZONTAL = 1
     VERTICAL = 2
     SKEWED = 3
+
+
+class Shots:
+    def __init__(self):
+        pass
+
+    NONE = '_'
+    MISSED = '.'
+    HIT = 'x'
+    DRAWN = 'X'
+
 
 class Direction:
     def __init__(self):
@@ -28,11 +41,13 @@ class Direction:
     UP = 3
     DOWN = 4
 
+
 def try_get_number(str):
     try:
         return int(str)
     except:
         return str
+
 
 def try_get_data(data, key):
     try:
@@ -40,6 +55,7 @@ def try_get_data(data, key):
     except Exception as e:
         print e.message
         return None
+
 
 def need_game_session(f):
     def wrapper(*args):
@@ -53,7 +69,9 @@ def need_game_session(f):
         else:
             # empty text cuz we don't answer without game session
             return
+
     return wrapper
+
 
 def need_questioned_game_session(f):
     def wrapper(*args):
@@ -68,7 +86,9 @@ def need_questioned_game_session(f):
         else:
             # empty text cuz we don't answer without game session
             return
+
     return wrapper
+
 
 def need_game_context(f):
     def wrapper(*args):
@@ -79,7 +99,9 @@ def need_game_context(f):
         if not game_context:
             return
         return f(*args)
+
     return wrapper
+
 
 def need_no_game_session(f):
     def wrapper(*args):
@@ -91,7 +113,9 @@ def need_no_game_session(f):
             return f(*args)
         else:
             return SESSION_ALREADY_ACTIVE_MSG.format(game_manager.uid)
+
     return wrapper
+
 
 def need_game_started(f):
     def wrapper(*args):
@@ -103,7 +127,9 @@ def need_game_started(f):
         else:
             # do not return anything!!!!!
             return
+
     return wrapper
+
 
 def need_game_not_started(f):
     def wrapper(*args):
@@ -114,7 +140,9 @@ def need_game_not_started(f):
             return f(*args)
         else:
             return IMPOSSIBLE_DURING_GAME
+
     return wrapper
+
 
 def need_registration(f):
     def wrapper(*args):
@@ -125,7 +153,9 @@ def need_registration(f):
             return f(*args)
         else:
             return NOT_REGISTERED_YET_MSG
+
     return wrapper
+
 
 def can_register_team(f):
     def wrapper(*args):
@@ -146,7 +176,9 @@ def can_register_team(f):
             return ALREADY_CAPTAIN_MSG
 
         return f(*args)
+
     return wrapper
+
 
 def need_valid_map(f):
     def wrapper(*args):
@@ -158,7 +190,9 @@ def need_valid_map(f):
             return f(*args)
         else:
             return NO_MAP_YET_MSG
+
     return wrapper
+
 
 def need_opponent_set(f):
     def wrapper(*args):
@@ -170,7 +204,9 @@ def need_opponent_set(f):
             return f(*args)
         else:
             return NO_OPPONENT_SET_MSG
+
     return wrapper
+
 
 def need_no_opponent_set(f):
     def wrapper(*args):
@@ -182,7 +218,9 @@ def need_no_opponent_set(f):
             return f(*args)
         else:
             return OPPONENT_IS_ALREADY_SET_MSG.format(game_context.op_team_name)
+
     return wrapper
+
 
 def need_question_answered(f):
     def wrapper(*args):
@@ -197,4 +235,5 @@ def need_question_answered(f):
             return f(*args)
         else:
             return u"Для выстрела необходимо ответить на вопрос!"
+
     return wrapper
