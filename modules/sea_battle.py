@@ -28,13 +28,13 @@ class Processor:
 
         # map of request_text - handlers
         self.mapper = {sbp.start_game_processing_command: self.start_game_session,
-                  # sbp.start_questioned_game_processing_command: self.start_questioned_game_session,
+                  sbp.start_questioned_game_processing_command: self.start_questioned_game_session,
                   sbp.stop_game_processing_command: self.stop_game_session,
-                  # sbp.answer_command: self.answer,
+                  sbp.answer_command: self.answer,
                   sbp.gameRequest_command: self.game_request,
                   sbp.bot_gameRequest_command: self.bot_game_request,
                   sbp.attack_command: self.attack,
-                  # sbp.questions_command: self.questions,
+                  sbp.questions_command: self.questions,
                   sbp.loadMap_command: self.load_map,
                   sbp.loadRandomMap_command: self.load_random_map,
                   sbp.registerTeam_command: self.register,

@@ -111,7 +111,7 @@ SESSION_STOPPED_MSG = u"Сессия игры Морской бой остано
 
 # commands  ===================================================================
 start_game_processing_command = u"тюлень, хотим в морской бой"
-start_questioned_game_processing_command = u"тюлень, хотим в морской бой с вопросами"
+start_questioned_game_processing_command = u"тюлень, хотим в академический морской бой"
 stop_game_processing_command = u"мы закончили морской бой"
 answer_command = u"ответ"
 gameRequest_command = u"играю с командой"

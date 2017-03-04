@@ -42,6 +42,17 @@ class Direction:
     DOWN = 4
 
 
+def get_command_args_str(command, message):
+    try:
+        print("get_command_args, message - {}".format(message.encode('utf8')))
+        if not command in message:
+            return ""
+        return message.split(command, 1)[1].strip()
+    except Exception as e:
+        print("get_command_args exception - {}".format(e.message))
+        return ""
+
+
 def try_get_number(str):
     try:
         return int(str)
@@ -225,10 +236,14 @@ def need_no_opponent_set(f):
 def need_question_answered(f):
     def wrapper(*args):
         game_manager = args[0]
+        try:
+            bot_turn = args[2]
+        except:
+            bot_turn = False
         if not game_manager:
             return
         active, questioned = game_manager.session_is_active()
-        if not questioned:
+        if not questioned or bot_turn:
             return f(*args)
         gc = game_manager.game_context
         if gc.this_team.question_answered:

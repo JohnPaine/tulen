@@ -27,6 +27,11 @@ class Point:
         return point
 
     @staticmethod
+    def normalize_points(i, j):
+        p = Point.normalize_point(Point(j, i, 1, False))
+        return p.y, p.x
+
+    @staticmethod
     def check_coord(coord):
         try:
             if isinstance(coord, (int, long)):
@@ -40,11 +45,13 @@ class Point:
     def try_parse(cls, coords_str):
         try:
             print "trying to parse coords string - {}".format(coords_str)
+            coords_str = coords_str.strip()
             coords_arr = coords_str.split(',')
             if len(coords_arr) != 2:
                 return u"Неверный формат координат, это двумерная игра, дурни"
 
-            coord_x, coord_y = Point.check_coord(try_get_number(coords_arr[0])), Point.check_coord(try_get_number(coords_arr[1]))
+            coord_x = Point.check_coord(try_get_number(coords_arr[0]))
+            coord_y = Point.check_coord(try_get_number(coords_arr[1]))
             if coord_x <= 0 or coord_y <= 0:
                 return u"Моя нэ понимат такие координаты, читайте мануал"
             if not coord_x in range(1, MAP_SIZE+1):

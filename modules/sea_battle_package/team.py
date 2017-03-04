@@ -37,6 +37,18 @@ class Team:
         self.ships_count = 0
         self.points = []
 
+    def process_drawn_ships(self):
+        for rank in sp.SHIP_RANKS_DICT:
+            for ship in self.ships[rank]:
+                if not ship.check_dead():
+                    continue
+                for point in ship.points:
+                    for i in range(point.y - 1, point.y + 2):
+                        for j in range(point.x - 1, point.x + 2):
+                            i, j = sp.Point.normalize_points(i, j)
+                            if self.field_of_shots[j + i * MAP_SIZE] == Shots.NONE:
+                                self.field_of_shots[j + i * MAP_SIZE] = Shots.MISSED
+
     @staticmethod
     def get_ship_instruction():
         msg = u"На карте должны быть расставлены корабли следующих рангов:\n"
