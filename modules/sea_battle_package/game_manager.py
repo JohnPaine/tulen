@@ -14,17 +14,17 @@ class GameManager:
         self.vk_user = vk_user
         self.questions = questions
         self.directory = directory
-        if not self.questions or len(self.questions) == 0:
-            self.questions = []
-            for i in range(1, 201):
-                self.questions.append({i: str(i)})
-        self.max_score = 20
 
-        # serialized data
+        if not self.questions or len(self.questions) == 0:
+            self.questions = map(lambda x: {x: str(x)}, range(1, 201))
+        self.max_score = reduce(lambda x, y: x + y, (key * value for key, value in shipRanks.iteritems()))
+
+        # serializable data
         self.teams = {}
         self.games = []
         self.active_sessions = []
 
+        # local data
         self.bot_turn = False
         self.hit_was_made = False
 
@@ -33,7 +33,6 @@ class GameManager:
     def __call__(self, message, uid, chat_id):
         if not uid:
             uid = message["user_id"]
-        print("__CALL__, uid - {}", uid)
 
         self.uid = uid
         self.chat_id = chat_id
@@ -47,26 +46,20 @@ class GameManager:
             self.game_context.this_team = self.game_context.create_team(team_name, self.uid)
 
         if self.check_winner():
-            print("CHECK WINNER RETURNED TRUE - ENDING GAME SESSION FOR {}!!!!\n\n\n".format(self.uid))
             self.stop_game_session()
 
         return self
 
     def __enter__(self):
-        print("Acquiring lock...")
         self.lock.acquire()
-        print("Lock acquired!")
 
     def __exit__(self, type, value, traceback):
-        print("__EXIT__, uid - {}", self.uid)
         self.process_bot_turn()
         if self.check_winner():
-            print("CHECK WINNER RETURNED TRUE - ENDING GAME SESSION FOR {}!!!!\n\n\n".format(self.uid))
             self.stop_game_session()
         self.save()
         self.game_context.save()
         self.lock.release()
-        print("Lock released.")
 
     #   game commands   ================================================================================================
 
@@ -88,9 +81,10 @@ class GameManager:
                u"3. играю с командой ИМЯ_КОМАНДЫ_ОППОНЕНТА\n" \
                u"Или, если хотите играть со мной:\n" \
                u"3. играю с тюленем\n" \
-               u"4. атакую КООРДИНАТА_X,КООРДИНАТА_Y\n" \
-               u"И так далее до окончания игры. Чтобы покинуть игру напишите Мы закончили морской бой\n\n" \
-               u"Список игровых команд выводится по команде Инструкция"
+               u"4. атакую КООРДИНАТА_X(цифрой [1-10]),КООРДИНАТА_Y(цифрой [1-10] или буквой [a-j])\n" \
+               u"И так далее, повторяя действие 4, до окончания игры.\n\n" \
+               u"Чтобы покинуть игру напишите Мы закончили морской бой\n" \
+               u"Список игровых команд выводится по команде Инструкция\n"
         return msg
 
     @need_no_game_session
@@ -112,9 +106,10 @@ class GameManager:
                u"3. играю с тюленем\n" \
                u"4. вопросы\n" \
                u"5. ответ НОМЕР_ВОПРОСА ОТВЕТ\n" \
-               u"6. атакую КООРДИНАТА_X,КООРДИНАТА_Y\n" \
-               u"И так далее до окончания игры. Чтобы покинуть игру напишите Мы закончили морской бой\n\n" \
-               u"Список игровых команд выводится по команде Инструкция"
+               u"6. атакую КООРДИНАТА_X(цифрой [1-10]),КООРДИНАТА_Y(цифрой [1-10] или буквой [a-j])\n" \
+               u"И так далее, повторяя действия 5 и 6, до окончания игры.\n\n" \
+               u"Чтобы покинуть игру напишите Мы закончили морской бой\n" \
+               u"Список игровых команд выводится по команде Инструкция\n"
         return msg
 
     @need_game_session
@@ -131,6 +126,7 @@ class GameManager:
         self.game_context.op_team_name = None
         self.game_context.op_cap_uid = None
         self.game_context.bot_game = False
+        GameContext.save_team_data(self.game_context.this_team, None, self.directory)
 
         return REGISTERED_TEAM_MSG.format(team_name, self.uid)
 
@@ -164,22 +160,20 @@ class GameManager:
     @need_game_context
     @need_registration
     def get_questions(self, message=""):
-        return u"Воспросы смотрите у меня на стене"
-        # ans = u"\n"
-        # for i, q in enumerate(self.questions):
-        #     a = q.keys()[0]
-        #     if a:
-        #         ans += u"Вопрос {}: {}\n".format(i + 1, a)
-        #
-        # return ans
+        # return u"Воспросы смотрите у меня на стене"
+        ans = u"\n"
+        for i, q in enumerate(self.questions):
+            a = q.keys()[0]
+            if a:
+                ans += u"Вопрос {}: {}\n".format(i + 1, a)
+
+        return ans
 
     @need_game_session
     @need_game_context
     @need_registration
     @need_game_not_started
     def load_map(self, message):
-        # from the third word
-        # field = "".join(message.split()[2:]).strip()
         field = get_command_args_str(loadMap_command, message)
         return self.game_context.this_team.parse_fields(field)
 
@@ -239,19 +233,15 @@ class GameManager:
     def show_maps(self, message=""):
         gc = self.game_context
         ans = u"Ваше поле:\n"
-        # ans += gc.this_team.print_fields_pic(False)
         img_filename = gc.this_team.print_fields_pic(False)
 
-        # print "Uploading sea_battle team {} map", gc.this_team_name
         msg_attachments = self.vk_user.upload_images_files([img_filename])
         self.send_message(message=ans, attachments=msg_attachments, chat_id=self.chat_id, uid=self.uid)
 
         if gc.opponent:
             ans = u"Поле выстрелов по оппоненту:\n"
-            # ans += gc.opponent.print_fields_pic(True)
             img_filename = gc.opponent.print_fields_pic(True)
 
-            # print "Uploading sea_battle opponent team {} map", gc.op_team_name
             msg_attachments = self.vk_user.upload_images_files([img_filename])
             self.send_message(message=ans, attachments=msg_attachments, chat_id=self.chat_id, uid=self.uid)
 
@@ -264,7 +254,6 @@ class GameManager:
     @need_opponent_set
     @need_game_started
     def parse_answer(self, message):
-        # data = message.split()[1:]
         data = get_command_args_str(answer_command, message)
         try:
             ans = data.split(' ')
@@ -278,7 +267,7 @@ class GameManager:
         if q_number < 1 or q_number > len(self.questions):
             return INVALID_ANSWER_NUMBER_MSG
 
-        return self.question_answered(q_number - 1, self.is_answer_correct(q_answer, q_number - 1))
+        return self.question_was_answered(q_number - 1, self.is_answer_correct(q_answer, q_number - 1))
 
     @need_game_session
     @need_game_context
@@ -311,7 +300,7 @@ class GameManager:
                 if not self.is_bot_game():
                     self.show_maps()
                 return result
-            self.shot_was_made(False)
+            self.shot_was_made(False, team)
             if not self.is_bot_game():
                 self.show_maps()
             return SHOT_MISSED
@@ -355,7 +344,7 @@ class GameManager:
                 was_hit, msg = ship.try_attack(hit_point)
                 if was_hit:
                     team.field_of_shots[hit_point.x + hit_point.y * MAP_SIZE] = Shots.DRAWN if msg == SHOT_DRAWN_SHIP else Shots.HIT
-                    self.shot_was_made(was_hit)
+                    self.shot_was_made(was_hit, team)
                 if msg:
                     return msg, ship
         team.field_of_shots[hit_point.x + hit_point.y * MAP_SIZE] = Shots.MISSED
@@ -428,11 +417,13 @@ class GameManager:
                 if not winner.bot_game:
                     self.send_message(self.teams[winner_name]["team_uid"],
                                       self.teams[winner_name]["team_chat_id"],
-                                      u"Это победа! Грац!")
+                                      u"Это победа! Грац! Ваши очки - {}, очки оппонента - {}"
+                                      .format(unicode(data["winner_score"]), unicode(data["looser_score"])))
                 if not looser.bot_game:
                     self.send_message(self.teams[looser.team_name]["team_uid"],
                                       self.teams[looser.team_name]["team_chat_id"],
-                                      u"Луууузеерыы! (Вы продули...=/)")
+                                      u"Луууузеерыы! (Вы продули...=/) Ваши очки - {}, очки оппонента - {}"
+                                      .format(unicode(data["looser_score"]), unicode(data["winner_score"])))
 
                 self.active_sessions = [session for session in self.active_sessions if
                                         (not winner.bot_game and session["session_uid"] != self.teams[winner_name]["team_uid"]) and
@@ -457,13 +448,15 @@ class GameManager:
 
     #   game commands   ================================================================================================
 
-    def shot_was_made(self, hit):
+    def shot_was_made(self, hit, team):
         gc = self.game_context
         if not gc or not gc.this_team:
             return
-        gc.this_team.question_answered = False
-        gc.this_team.score += gc.this_team.score_per_hit if hit else 0
-        gc.this_team.score_per_hit = 0
+        team.question_answered = False
+        active, questioned = self.session_is_active()
+        team.score += gc.this_team.score_per_hit if hit else 0
+        team.score += 1 if hit and (not questioned or self.is_bot_game()) else 0
+        team.score_per_hit = 0
         self.bot_turn = self.is_bot_game()
         self.hit_was_made = hit
         print "Team uid {} score - {}".format(gc.this_team.cap_uid, gc.this_team.score)
@@ -503,12 +496,6 @@ class GameManager:
     @need_game_started
     def check_winner(self):
         return self.game_context.check_winner()
-
-    def get_game_winner(self):
-        game, i = self.get_game_data()
-        if game:
-            return game["winner"]
-        return ""
 
     @staticmethod
     def check_list(container, data_type):
@@ -650,12 +637,12 @@ class GameManager:
             return False
         return try_get_data(game, "game_started")
 
-    def question_answered(self, question_id, correct):
+    def question_was_answered(self, question_id, correct):
         gc = self.game_context
         if question_id in gc.this_team.answered_questions:
             return QUESTION_ALREADY_ANSWERED.format(question_id + 1)
 
-        score_per_hit = 1 if correct else 0
+        score_per_hit = RIGHT_ANSWER_SCORE if correct else WRONG_ANSWER_SCORE
         gc.this_team.score_per_hit = score_per_hit
         gc.this_team.question_answered = True
         gc.this_team.answered_questions.append(question_id)
@@ -663,6 +650,8 @@ class GameManager:
         if correct:
             return CORRECT_ANSWER_MSG.format(score_per_hit)
         return INVALID_ANSWER_TEXT_MSG
+
+    #   ================================= GET from GameManager =========================================================
 
     def get_team_name(self, uid=None):
         uid = self.uid if not uid else uid
@@ -687,3 +676,11 @@ class GameManager:
         if self.is_bot_game():
             return "tulen"
         return try_get_data(self.teams[team_name], "team_uid")
+
+    def get_game_winner(self):
+        game, i = self.get_game_data()
+        if game:
+            return game["winner"]
+        return ""
+
+    #   ================================= GET from GameManager =========================================================

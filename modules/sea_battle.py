@@ -94,7 +94,6 @@ class Processor:
         def wrapper(funk, msg):
             def call():
                 return funk(msg)
-
             return call
 
         # return necessary method

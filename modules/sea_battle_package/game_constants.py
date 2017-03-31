@@ -5,6 +5,8 @@
 # TODO: can this be different??
 MAP_SIZE = 10
 MAX_RANK = 4
+RIGHT_ANSWER_SCORE = 1
+WRONG_ANSWER_SCORE = 0
 
 MAP_EXAMPLE = """
                 0 0 0 1 0 0 3 0 0 1

@@ -235,6 +235,7 @@ def need_no_opponent_set(f):
 
 def need_question_answered(f):
     def wrapper(*args):
+        return f(*args)
         game_manager = args[0]
         try:
             bot_turn = args[2]
