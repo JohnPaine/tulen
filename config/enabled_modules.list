@@ -1,22 +1,21 @@
-unique sea_battle
-#dump_photos
-#unique blacklist
-#ascii_img
-#approve
-#reply
-#vkmusic
-#vkwall
-#vkvideo
-#vkdocs
-#help
-#googleimg
+dump_photos
+unique blacklist
+ascii_img
+approve
+reply
+vkwall
+vkvideo
+vkdocs
+help
+googleimg
 #global like
-#pixelsort
-#alarm
-#unique censor
-#unique hangman
-#unique blackjack
-#unique wiki
-#unique captcha_balance
-#global add_to_friends
-#unique who
+pixelsort
+alarm
+unique censor
+#unique sea_battle
+unique hangman
+unique blackjack
+unique wiki
+unique captcha_balance
+global add_to_friends
+unique who

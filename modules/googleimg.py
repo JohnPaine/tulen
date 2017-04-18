@@ -2,11 +2,10 @@
 # -*- coding: utf-8 -*-
 
 import  urllib
-import urllib2
 
 import requests
 import time
-import urlparse
+import urllib as urlparse
 import sys
 import random
 from bs4 import BeautifulSoup
@@ -14,13 +13,19 @@ import requests
 import re
 import tempfile
 import os
+import logging 
 
+logger = logging.getLogger("tulen.googleimg")
 YANDEX_URL = "https://yandex.ru/images/search?{}"
 
 headers = {'User-Agent': "Mozilla/5.0 (Windows NT 6.3; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/37.0.2049.0 Safari/537.36",
            'Accept':'*/*'}
 
-urllib.URLopener.version  = headers["User-Agent"]
+
+class AppURLopener(urllib.request.FancyURLopener):
+    version = headers["User-Agent"]
+
+urllib._urlopener = AppURLopener()
 
 session = requests.Session()
 session.headers.update(headers)
@@ -39,9 +44,8 @@ def get_new_file_name():
 def get_html(url):
     global cookies
     r = session.get(url,cookies=cookies)
-    print r.url
+    
     cookies.update(session.cookies.get_dict())
-    print cookies
     return r.text
 
 def encoded_dict(in_dict):
@@ -62,18 +66,18 @@ def make_soup(query):
 
 def download_image(url, filename):
     try:
-        print "Downloading [{}] to {}".format(url,filename)
+        logger.info("Downloading [{}] to {}".format(url,filename))
         urllib.urlretrieve(url, filename)
         return True
     except: 
-        print sys.exc_info()
+        logger.exception("Download image error")
         return False
     
 def isBanned(soup):
     t = soup.find_all("title")[0].string
     
     if len(t) == 5 and t[-1]=="!":
-       print "Banned"
+       logger.warning("Banned at yandex")
        return True
 
 def get_images_urls(soup):
@@ -106,8 +110,7 @@ class Processor:
     def getCaptchaImage(self, soup):
         i = soup.find("img", { "class" : "form__captcha" })
         url= i.get("src")
-        
-        print soup.find_all("input")
+    
         self.last_key = soup.find("input",{"name":"key"})["value"]
         self.last_retpath = soup.find("input",{"name":"retpath"})["value"]
         fname = "./files/"+next(tempfile._get_candidate_names())+".jpg"
@@ -122,7 +125,7 @@ class Processor:
 
         url = "https://yandex.ru/checkcaptcha?"
         getVars = {'key': self.last_key, "rep": req, "retpath":self.last_retpath }
-        print "Posting captha:", url + urllib.urlencode(encoded_dict(getVars))
+        logger.info("Posting yandex captha:", url + urllib.urlencode(encoded_dict(getVars)))
         get_html(url + urllib.urlencode(encoded_dict(getVars)))
 
 
@@ -137,7 +140,7 @@ class Processor:
 
             if self.banned:
                 if chatid in self.chats_know_about_ban:
-                    print "know about ban, post captha"
+                    
                     self.postCaptcha(req)
                     self.chats_know_about_ban = []
                     req = self.prev_req[chatid]
@@ -151,7 +154,6 @@ class Processor:
             html = make_soup(req)    
             self.req = req
             if isBanned(html):
-                print "-------BANNDED"
                 self.banned = True
                 
                 self.last_capthca_img = self.getCaptchaImage(html)
@@ -167,7 +169,6 @@ class Processor:
                 session.headers.update(headers)
  
                 all_images = get_images_urls(html)
-                print "-------NOT BANNED", len(all_images)
                 if all_images:
                     random_url = random.choice(all_images)
 
@@ -184,7 +185,6 @@ class Processor:
                 self.user.send_message(text=u"Уупс, не нашлось ничего на \""+req+"\"", chatid = chatid, userid=userid)
                 return
             
-            print "Uploading imgs",imgfilename
             msg_attachments = self.user.upload_images_files([imgfilename,])
            
             if not msg_attachments:
@@ -198,7 +198,7 @@ pool = multiprocessing.Pool(1)
 if __name__ == "__main__":
         class User():
             def send_message(self, **kwargs):
-                print kwargs["text"]
+                print (kwargs["text"])
                 
 
             def upload_images_files(self,*args):

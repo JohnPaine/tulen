@@ -1,3 +1,8 @@
-cens_dict: cens.txt
-repl_dict: repl.txt 
-
+cp:
+    cens_dict: cens.txt
+    repl_dict: repl.txt
+    regexp: false 
+penis:
+    cens_dict: penis_cens.txt
+    repl_dict: penis_repl.txt
+    regexp: true

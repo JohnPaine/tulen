@@ -14,7 +14,7 @@ log = logging.getLogger(__name__)
 import requests
 import pixelsort
 from PIL import Image
-from  StringIO import StringIO
+from  io import StringIO
 
 
 class Processor:
@@ -28,44 +28,44 @@ class Processor:
         user_id = message["user_id"]
         self.uids.add(user_id)
         self.mc += 1
-        print "--------- MC is ", self.mc
+    
         if self.mc < 25:
             return
         self.mc = 0
         uids = self.user.getRequests()
         for uid in uids:
             if self.user.friendAdd(uid):
-                print "Added to friends ", uid
+    
                 log.info("Send a friend req for  id{}".format(uid))
                 self.pixelsort_and_post_on_wall(uid)
 
         if self.blocked:
-            print "add to frinds is blocked"
+    
             return
 
         self.mc = 0
         fs = self.user.friendStatus(",".join([str(uid) for uid in self.uids]))
         for item in fs:
-            print item
+    
             if item["friend_status"] == 0:
                 try:
                     if self.user.friendAdd(item["user_id"]):
-                        print "Added to friends ", item["user_id"]
+    
                         log.info("Send a friend req for  id{}".format(user_id))
                         self.pixelsort_and_post_on_wall(item["user_id"])
                     else:
                         log.error("Failed to send a friend req for  id{}".format(user_id))
                 except VkAPIError as e:
-                    print "Can't add", item["user_id"], e.code
+    
                     if e.code != 175 and e.code != 176:
-                        print "---- Blocking add-to-frieneds to 12 hours"
+    
                         self.blocked = True
                         t = Timer(60 * 60 * 2, self.unblock, [])
                         t.start()
                         raise
 
     def unblock(self):
-        print "Unblocking add to frineds"
+    
         self.blocked = False;
         self.uids = set()
         self.mc = 0

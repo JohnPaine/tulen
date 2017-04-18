@@ -9,7 +9,6 @@ import os
 
 CONFIG_FILE = "conf.yaml"
 
-
 class Processor:
     def __init__(self, vkuser):
         self.user = vkuser
@@ -26,7 +25,7 @@ class Processor:
                 pass
 	
         if rep.startswith("img:"):
-            print rep
+            
             f = self.user.module_file("approve", rep[rep.rindex("img"):])
             attc = self.user.upload_images_files([f,])
             self.user.send_message(text = "", attachments = attc, chatid=chatid, userid=userid)
@@ -35,7 +34,7 @@ class Processor:
             self.user.send_message(text=rep, chatid=chatid, userid=userid)
 
     def process_message(self, message, chatid, userid):
-	responded = False
+        responded = False
 
         for word in self.config.keys():
             
