@@ -24,30 +24,20 @@ class Seal:
 
     def __enter__(self):
         print('Seal.__enter__')
-        # self.publisher_channel, self.publisher_connection = setup_amqp_channel_()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         print('Seal.__exit__')
-        if self.publisher_connection:
-            self.publisher_connection.close()
-            self.publisher_connection = None
 
     def get_seal_id(self):
         return self.seal_id
 
     def publish_message(self, signal, message=''):
-        if self.publisher_connection:
-            self.publisher_connection.close()
-        self.publisher_connection = setup_amqp_channel_()
-
-        routing_key = '{}.{}.{}'.format(signal, self.seal_id, 'manager')
-        if not message:
-            message = 'signal:{} from seal:{} to manager'.format(signal, self.seal_id)
-        publish_message_(self.publisher_connection.channel(), routing_key, message)
-
-        self.publisher_connection.close()
-        self.publisher_connection = None
+        with setup_amqp_channel_() as self.publisher_connection:
+            routing_key = '{}.{}.{}'.format(signal, self.seal_id, 'manager')
+            if not message:
+                message = 'signal:{} from seal:{} to manager'.format(signal, self.seal_id)
+            publish_message_(self.publisher_connection.channel(), routing_key, message)
 
     def bind_slots(self):
         slot_map = {}
