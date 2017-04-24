@@ -28,9 +28,8 @@ def save_msg(msg, uid):
                 urllib.urlretrieve(a["photo"]["photo_604"], "./files/pphotos/{}_{}.jpg".format(msg["user_id"],msg["id"]))
 
 
-
 def first_run_process(api, uid):
-    if os.path.isfile("./files/pphotos/finish"):
+    if os.path.isfile("./files/pphotos/finish") or not api:
         return
     offset = 311600
     while True:

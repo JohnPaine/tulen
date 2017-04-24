@@ -19,6 +19,7 @@ from  io import StringIO
 
 class Processor:
     def __init__(self, user):
+        print('Add to friends module ctor called!')
         self.user = user
         self.mc = 0
         self.uids = set()
@@ -28,9 +29,11 @@ class Processor:
         user_id = message["user_id"]
         self.uids.add(user_id)
         self.mc += 1
-    
+
         if self.mc < 25:
             return
+
+        print('Add to friends process_message called with user_id: {}'.format(user_id))
         self.mc = 0
         uids = self.user.getRequests()
         for uid in uids:

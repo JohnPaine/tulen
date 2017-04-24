@@ -1,22 +1,19 @@
 # coding: utf-8
 import time
-import json
 import requests
-import io
 import sys
 import os
 import logging
 import random
 import threading
-from multiprocessing.pool import ThreadPool
 import multiprocessing
 
 import vk
-import utils
 import vkrequest
+from seal_account_manager import SealMode
 
 sys.path.append("./modules")
-logger = logging.getLogger('tulen')
+logger = logging.getLogger('seal')
 logger.setLevel(logging.DEBUG)
 
 vk_script_getmsg = """var k = 200;
@@ -36,11 +33,11 @@ return messages;"""
 
 
 class VkUser(object):
-    #return the file form config directory for module name
-    #used by modules
-    def module_file(self,  modname, filename):
-        return os.path.join(self.config.get("modules_config_dir", "config"),modname, filename)
-    
+    # return the file form config directory for module name
+    # used by modules
+    def module_file(self, modname, filename):
+        return os.path.join(self.config.get("modules_config_dir", "config"), modname, filename)
+
     def init_globals(self):
         # for proper random
         random.seed(time.time())
@@ -51,22 +48,19 @@ class VkUser(object):
             logger.warning("Anticaptcha cant be intialized: no config")
 
         else:
-
             service = captcha_config["service"]
             creds = captcha_config["credentials"]
             vkrequest.init_captcha(service, creds)
             logger.info("Captcha [{}] initialized. balance: {}".format(service,
                                                                        vkrequest.captcha.balance()))
 
-        # enable ratelimiting
-        vkrequest.run_ratelimit_dispatcher()
-
-        logger.info("Rate-limit dispatcher started")
+        # enable rate limiting
+        self.rate_limit_dispatch_process = vkrequest.run_ratelimit_dispatcher()
 
         logger.info("Global systems initialized")
 
     def init_vk_session(self):
-        if self.testmode:
+        if self.test_mode and self.run_mode != SealMode.Breeder:
             self.api = None
             logger.info("VK Session: test mode")
         else:
@@ -77,7 +71,7 @@ class VkUser(object):
             if not self.my_uid:
                 raise RuntimeError("Access config: user_id not defined")
 
-            self.api = vk.API(session,  v='5.50', timeout=timeout)
+            self.api = vk.API(session, v='5.50', timeout=timeout)
 
             logger.info("VK Session: real mode [{}]".format(self.my_uid))
 
@@ -99,8 +93,6 @@ class VkUser(object):
         logger.info("All modules loaded.")
 
     def load_modules(self, mod_list):
-        self.modules = {"global":[], "unique":[], "parallel": []}
-
         def add_module(modif, modproc):
             modules = self.modules.get(modif, [])
             modules.append(modproc)
@@ -114,47 +106,58 @@ class VkUser(object):
                 modif = data[0]
                 module = data[1]
 
-            package = __import__("modules"+"."+module)
+            package = __import__("modules" + "." + module)
             processor = getattr(package, module)
             modprocessor = processor.Processor(self)
 
             add_module(modif, modprocessor)
 
             logger.info("Loaded module: [{}] as {}".format(
-                "modules"+"."+module, modif))
+                "modules" + "." + module, modif))
 
     def init_multithreading(self):
-        self.msg_queue = {}
-
         # create message queue: general (first step for uniq modules)
         self.msg_queue["general"] = multiprocessing.Queue()
         # create message queues: paralel (for parallel message processing)
         self.msg_queue["parallel"] = multiprocessing.Queue()
-
-        self.msg_processors = {}
 
         # create threads for general messages, and for parallel mesages
         # they will pick-up messages from queues
         msg_thread_count = int(self.config.get("msg_threads", 4))
         mod_thread_count = int(self.config.get("mod_threads", 4))
 
-        self.msg_processors["general"] = [threading.Thread(target=self.process_message_general)
+        self.msg_processors["general"] = [threading.Thread(target=self.process_message_general, daemon=True)
                                           for x in range(msg_thread_count)]
-        self.msg_processors["parallel"] = [threading.Thread(target=self.process_message_parallel)
+        self.msg_processors["parallel"] = [threading.Thread(target=self.process_message_parallel, daemon=True)
                                            for x in range(mod_thread_count)]
-        # lauch this threads
+        # launch these threads
         [t.start() for t in self.msg_processors["general"]]
         [t.start() for t in self.msg_processors["parallel"]]
 
         logger.info("Multithreading intialized: {}x{} grid.".format(
             msg_thread_count, mod_thread_count))
 
-    def __init__(self, config, testmode=False, onlyforuid=None):
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self.rate_limit_dispatch_process:
+            print('Exiting vk_user instance - calling self.rate_limit_dispatch_process.terminate()')
+            self.rate_limit_dispatch_process.terminate()
+            self.rate_limit_dispatch_process.join(5)
+
+    def __init__(self, config, test_mode, run_mode, only_for_uid):
+        self.modules = {"global": [], "unique": [], "parallel": []}
+        self.msg_processors = {}
+        self.msg_queue = {}
+        self.rate_limit_dispatch_process = None
+
         self.config = config
-        if onlyforuid:
-            onlyforuid = int(onlyforuid)
-        self.onlyforuid = onlyforuid
-        self.testmode = testmode
+        if only_for_uid:
+            only_for_uid = int(only_for_uid)
+        self.only_for_uid = only_for_uid
+        self.test_mode = test_mode
+        self.run_mode = run_mode
 
         self.init_globals()
         self.init_vk_session()
@@ -164,8 +167,8 @@ class VkUser(object):
         logger.info("All intializing complete")
 
     def poll_messages(self):
-        if self.testmode:
-            msg = raw_input("msg>> ")
+        if self.test_mode and self.run_mode != SealMode.Breeder:
+            msg = input("msg>> ")
             messages = [
                 {"read_state": 0, "id": "0", "body": msg, "chat_id": 2}]
         else:
@@ -180,9 +183,9 @@ class VkUser(object):
         unread_messages = [msg for msg in messages if msg["read_state"] == 0]
 
         # filter messages if they are for specified uid
-        if self.onlyforuid:
+        if self.only_for_uid:
             unread_messages = [msg for msg in unread_messages if msg[
-                "user_id"] == self.onlyforuid]
+                "user_id"] == self.only_for_uid]
 
         if len(unread_messages) > 0:
             logger.info("Unread messages: {}".format(len(unread_messages)))
@@ -212,13 +215,14 @@ class VkUser(object):
             userid = message.get("user_id", None)
 
         return module.process_message(message, chatid, userid)
+
     # general processing thread: picks messages from general queue
 
     def process_message_general(self):
 
         def process_in_unique_modules(message):
             for m in self.modules["unique"]:
-                if self.process_message_in_module(m, message) == True:
+                if self.process_message_in_module(m, message):
                     logger.info("Unique module {} worked".format(m.__class__))
                     return True
             return False
@@ -250,15 +254,14 @@ class VkUser(object):
                 logger.debug("Parallel message processing in {}"
                              .format(self.modules["parallel"][module_index].__class__))
 
-                self.process_message_in_module(
-                    self.modules["parallel"][module_index], message)
+                self.process_message_in_module(self.modules["parallel"][module_index], message)
             except:
                 logger.exception("Processing in parallel failed")
 
     # shorcuts for common-use vk-api requests
     def send_message(self, text="", chatid=None, userid=None, attachments=None):
-        if self.testmode:
-            print("----", text, attachments)
+        if self.test_mode:
+            print("test mode, printing message ---->> ", text, attachments)
             return
 
         if not attachments:
@@ -345,8 +348,8 @@ class VkUser(object):
             try:
                 # i think we do not need to use rate-limit operation here
                 response = vkrequest.perform_now(op, args)
-                ph = {"photo": response["photo"], 
-                      "server": response["server"], 
+                ph = {"photo": response["photo"],
+                      "server": response["server"],
                       "hash": response["hash"]}
                 photos.append(ph)
             except:
@@ -372,7 +375,7 @@ class VkUser(object):
 
                 resp = vkrequest.perform(op, args)
                 attachments.append(
-                    "photo"+str(resp[0]["owner_id"])+"_"+str(resp[0]["id"]))
+                    "photo" + str(resp[0]["owner_id"]) + "_" + str(resp[0]["id"]))
             except:
                 logger.exception("Saving message image failed")
                 return None
@@ -401,7 +404,7 @@ class VkUser(object):
 
                 resp = vkrequest.perform(op, args)
                 attachments.append(
-                    "photo"+str(resp[0]["owner_id"])+"_"+str(resp[0]["id"]))
+                    "photo" + str(resp[0]["owner_id"]) + "_" + str(resp[0]["id"]))
             except:
                 logger.exception("Saving wall image failed")
                 raise
@@ -415,7 +418,7 @@ class VkUser(object):
         resp = vkrequest.perform(op, args)
         try:
             video = resp["items"][0]
-            r = "video"+str(video["owner_id"])+"_"+str(video["id"])
+            r = "video" + str(video["owner_id"]) + "_" + str(video["id"])
             return [r, ]
         except:
             logger.exception("Video search failed")
@@ -428,7 +431,7 @@ class VkUser(object):
         resp = vkrequest.perform(op, args)
         try:
             doc = resp["items"][0]
-            r = "doc"+str(doc["owner_id"])+"_"+str(doc["id"])
+            r = "doc" + str(doc["owner_id"]) + "_" + str(doc["id"])
             return [r, ]
         except:
             logger.exception("Document logging failed")
@@ -441,7 +444,7 @@ class VkUser(object):
         resp = vkrequest.perform(op, args)
         try:
             wall = resp["items"][0]
-            r = "wall"+str(wall["owner_id"])+"_"+str(wall["id"])
+            r = "wall" + str(wall["owner_id"]) + "_" + str(wall["id"])
             return [r, ]
         except:
             logger.exception("Wall post search failed")
@@ -475,7 +478,7 @@ class VkUser(object):
         return resp[0]
 
     def friendAdd(self, user_id):
-        logger.info("Adding to friends")
+        logger.info("Adding to friends uid: {}".format(user_id))
         op = self.api.friends.add
         args = {"user_id": user_id}
         resp = vkrequest.perform(op, args)

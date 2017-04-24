@@ -1,21 +1,21 @@
-dump_photos
+#dump_photos
 unique blacklist
-ascii_img
+#ascii_img
 approve
 reply
-vkwall
-vkvideo
+#vkwall
+#vkvideo
 vkdocs
-help
-googleimg
+#help
+#googleimg
 #global like
-pixelsort
-alarm
-unique censor
+#pixelsort
+#alarm
+#unique censor
 #unique sea_battle
-unique hangman
-unique blackjack
-unique wiki
-unique captcha_balance
+#unique hangman
+#unique blackjack
+#unique wiki
+#unique captcha_balance
 global add_to_friends
-unique who
+#unique who

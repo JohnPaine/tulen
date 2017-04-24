@@ -4,51 +4,40 @@
 import yaml
 import time
 import argparse
-from seal_management import *
+from seal_account_manager import *
+import logging.config
+from vkuser import VkUser
+
+# logging:      --------------------------------------------------------------------------------------------------------
+LOG_SETTINGS = {
+    'version': 1,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'level': 'INFO',
+            'formatter': 'default',
+            'stream': 'ext://sys.stdout',
+        },
+    },
+    'formatters': {
+        'default': {
+            '()': 'multiline_formatter.formatter.MultilineMessagesFormatter',
+            'format': '[%(levelname)s] %(message)s'
+        },
+    },
+    'loggers': {
+        'seal': {
+            'level': 'DEBUG',
+            'handlers': ['console', ]
+        },
+    }
+}
+
+logging.config.dictConfig(LOG_SETTINGS)
+logger = logging.getLogger("seal")
 
 
-class SealMode:
-    def __init__(self):
-        pass
-
-    Standalone = 'standalone'
-    TestMode = 'test_mode'
-    Breeder = 'breeder'
-
-
-class Seal:
-    def __init__(self, seal_id):
-        self.seal_id = seal_id
-        self.listener_connection = setup_amqp_channel_()
-        self.publisher_connection = None
-
-    def __enter__(self):
-        print('Seal.__enter__')
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        print('Seal.__exit__')
-
-    def get_seal_id(self):
-        return self.seal_id
-
-    def publish_message(self, signal, message=''):
-        with setup_amqp_channel_() as self.publisher_connection:
-            routing_key = '{}.{}.{}'.format(signal, self.seal_id, 'manager')
-            if not message:
-                message = 'signal:{} from seal:{} to manager'.format(signal, self.seal_id)
-            publish_message_(self.publisher_connection.channel(), routing_key, message)
-
-    def bind_slots(self):
-        slot_map = {}
-        for queue_name, slot in SEAL_SIGNAL_SLOT_MAP.items():
-            routing_key = '{}.{}.{}'.format(queue_name, 'manager', self.seal_id)
-            slot_map[routing_key] = slot
-        bind_slots_(self.listener_connection.channel(), slot_map)
-
-    def receive_signals(self):
-        for queue_name in SEAL_SIGNAL_SLOT_MAP:
-            receive_signals_(self.listener_connection.channel(), queue_name)
+# logging:      --------------------------------------------------------------------------------------------------------
 
 
 seal = None
@@ -78,71 +67,96 @@ def on_stop_seal_cmd(channel, method, header, body):
 
     channel.basic_ack(delivery_tag=method.delivery_tag)
     if seal:
-        raise SealManagerException('Seal {} received stop_signal from manager - stopping...'.format(seal.get_seal_id()))
+        raise SealManagerException('SealAccountManager {} received stop_signal from manager - stopping...'
+                                   .format(seal.get_seal_id()))
 
 
-# exchange(signal) - slot (from manager to seal)
+# signal - slot (from manager to seal)
 SEAL_SIGNAL_SLOT_MAP = {ADD_FRIEND_CMD: on_add_friend_cmd,
                         JOIN_CHAT_CMD: on_join_chat_cmd,
                         STOP_SEAL_CMD: on_stop_seal_cmd}
 
-
 # slots:        --------------------------------------------------------------------------------------------------------
 
 
-def process(config, mode):
-    print("Seal process started...")
+# vk_api:       --------------------------------------------------------------------------------------------------------
+def prepare_vk_user(config, test_mode, run_mode, only_for_uid):
+    vk_user = VkUser(config, test_mode, run_mode, only_for_uid)
+
+    logger.info("Created user api")
+    logger.info("Starting processing... ")
+
+    return vk_user
+
+
+def process_vk_messages(vk_user):
+    try:
+        msg = vk_user.poll_messages()
+        vk_user.process_messages(msg)
+    except Exception as e:
+        logger.exception("Something wrong while processing vk messages: {}".format(e))
+        if vk_user.test_mode:
+            return False
+
+    return True
+
+# vk_api:       --------------------------------------------------------------------------------------------------------
+
+
+def process(config, run_mode, test_mode, only_for_uid):
+    print("SealAccountManager process started...")
 
     seal_id = config['access_token']['user_id']
+
     global seal
-    seal = Seal(seal_id)
+    seal = SealAccountManager(seal_id, run_mode, SEAL_SIGNAL_SLOT_MAP)
+    seal.bind_slots()
 
-    if mode == SealMode.Breeder:
-        print('Seal started from seal_breeder - connecting slots...')
+    with prepare_vk_user(config, test_mode, run_mode, only_for_uid) as vk_user:
+        while True:
+            try:
+                # time.sleep(0.1)
 
-        seal.bind_slots()
+                seal.receive_signals()
+                # seal.publish_message(SOLVE_CAPTCHA_REQ,
+                #                      "seal -> manager: solve captcha for seal with id {}".format(seal.get_seal_id()))
 
-    while True:
-        try:
-            time.sleep(0.1)
+                if not process_vk_messages(vk_user):
+                    break
 
-            if mode == SealMode.Breeder:
-                print('seal receiving signals...')
-                for i in range(10):
-                    seal.receive_signals()
+                print("* seal's processing messages ...")
+            except SealManagerException as e:
+                print(e)
+                break
+            except Exception as e:
+                print('exception occurred in seal process: {}'.format(e))
+                break
 
-                seal.publish_message(SOLVE_CAPTCHA_REQ,
-                                     "seal -> manager: solve captcha for seal with id {}".format(seal.get_seal_id()))
-
-            print("* seal's processing messages ...")
-        except SealManagerException as e:
-            print(e)
-            break
-        except Exception as e:
-            print('exception occurred in seal process: {}'.format(e))
-            break
-
-    print("Seal process finished...")
+    print("SealAccountManager process finished...")
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Seal breeder program')
+    parser = argparse.ArgumentParser(description='SealAccountManager breeder program')
     parser.add_argument('-c', '--config', dest='config', metavar='FILE.yaml',
                         help='configuration file to use', default='access.yaml')
-    parser.add_argument('-m', '--mode', dest='mode', metavar='mode_name',
+    parser.add_argument('-m', '--mode', dest='run_mode', metavar='run_mode_name',
                         help="run mode for seal", default='standalone')
+    parser.add_argument("-t", "--test", dest="test_mode",
+                        help="test mode", action="store_true", default=False)
+    parser.add_argument("-o", "--only_for_uid", dest="only_for_uid",
+                        help="work only with master's messages")
 
     args = parser.parse_args()
-    print("************* Seal - vk.com bot ****************")
+    print("************* SealAccountManager - vk.com bot ****************")
 
     config = yaml.load(open(args.config))
 
     print("Loaded configuration ")
     print(yaml.dump(config))
 
-    process(config, args.mode)
+    process(config, args.run_mode, args.test_mode, args.only_for_uid)
 
 
 if __name__ == '__main__':
-    print('seal.pt main func called')
+    print('seal.py main func called')
     main()

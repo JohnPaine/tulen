@@ -3,6 +3,7 @@
 
 import pika
 import os
+from abc import ABCMeta, abstractmethod
 
 ########################################################################################################################
 # Idea explanation
@@ -79,11 +80,14 @@ class IterCounter:
         self.counter = 0
         self.max_count = max_count
         self.raise_exception = raise_exception
+        print('IterCounter, max_count: {}, raise_exception: {}'.format(max_count, raise_exception))
 
     def count(self):
         self.counter += 1
         if self.raise_exception and self.counter > self.max_count:
+            print("IterCounter loop limit reached - {}".format(self.max_count))
             raise SealManagerException("IterCounter loop limit reached - {}".format(self.max_count))
+
 
 # utils:        --------------------------------------------------------------------------------------------------------
 
@@ -96,8 +100,8 @@ def setup_amqp_channel_(use_credentials=False):
         creds_broker = None
 
     connection_params = pika.ConnectionParameters(host=AMQP_SERVER,
-                                            virtual_host=AMQP_VHOST,
-                                            credentials=creds_broker)
+                                                  virtual_host=AMQP_VHOST,
+                                                  credentials=creds_broker)
     return pika.BlockingConnection(connection_params)
 
 
@@ -124,6 +128,7 @@ def bind_queue_(channel, queue_name, routing_key):
 
 
 def bind_slot_(channel, routing_key, slot):
+    print('binding slot: {} to routing_key: {}'.format(slot, routing_key))
     # routing_key:  <command>.<from>.<to>
     keys = str(routing_key).split('.')
     exchange = get_exchange_type_(routing_key)
@@ -135,6 +140,8 @@ def bind_slot_(channel, routing_key, slot):
     channel.basic_consume(slot,
                           queue=keys[0],
                           no_ack=False)
+
+    print('binding slot: {} to routing_key: {} ---> DONE!!!'.format(slot, routing_key))
 
 
 def bind_slots_(channel, slot_map):
@@ -170,3 +177,76 @@ def receive_signals_(channel, queue_name, inactivity_timeout=0.01):
     channel.cancel()
 
 # amqp management:      ------------------------------------------------------------------------------------------------
+
+
+# account manager       ------------------------------------------------------------------------------------------------
+class SealMode:
+    def __init__(self):
+        pass
+
+    Standalone = 'standalone'
+    TestMode = 'test_mode'
+    Breeder = 'breeder'
+
+    @staticmethod
+    def check_breeder_mode(f):
+        def wrapper(*args):
+            account_manager = args[0]
+            if not hasattr(account_manager, 'mode'):
+                return f(*args)
+            if account_manager.mode == SealMode.Breeder:
+                return f(*args)
+            return None
+        return wrapper
+
+
+class BaseAccountManager:
+    def __init__(self, slot_map):
+        self.slot_map = slot_map
+        self.listener_connection = setup_amqp_channel_()
+        self.publisher_connection = None
+
+    def __enter__(self):
+        print('BaseAccountManager.__enter__')
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        print('BaseAccountManager.__exit__')
+
+    @abstractmethod
+    def make_signal_routing_key(self, signal, manager='manager', seal_id=None):
+        pass
+
+    @abstractmethod
+    def make_slot_routing_key(self, queue_name, manager='manager', seal_id=None):
+        pass
+
+    @abstractmethod
+    def make_message(self, signal, manager='manager', seal_id=None):
+        pass
+
+    @SealMode.check_breeder_mode
+    def publish_message(self, signal, message='', seal_id=None, manager='manager'):
+        print('BaseAccountManager publishing message for signal: {}, message: {}'.format(signal, message))
+        with setup_amqp_channel_() as self.publisher_connection:
+            routing_key = self.make_signal_routing_key(signal, manager, seal_id)
+            if not message:
+                message = self.make_message(signal, manager, seal_id)
+            publish_message_(self.publisher_connection.channel(), routing_key, message)
+
+    @SealMode.check_breeder_mode
+    def bind_slots(self, seal_id=None, manager='manager'):
+        print('BaseAccountManager - connecting slots...')
+        slot_map = {}
+        for queue_name, slot in self.slot_map.items():
+            routing_key = self.make_slot_routing_key(queue_name, manager, seal_id)
+            slot_map[routing_key] = slot
+        bind_slots_(self.listener_connection.channel(), slot_map)
+
+    @SealMode.check_breeder_mode
+    def receive_signals(self, loop_limit=10):
+        for _ in range(loop_limit):
+            for queue_name in self.slot_map:
+                receive_signals_(self.listener_connection.channel(), queue_name)
+
+# account manager       ------------------------------------------------------------------------------------------------
