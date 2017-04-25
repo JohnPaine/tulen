@@ -7,6 +7,7 @@ import argparse
 from seal_account_manager import *
 import logging.config
 from vkuser import VkUser
+import random
 
 # logging:      --------------------------------------------------------------------------------------------------------
 LOG_SETTINGS = {
@@ -103,6 +104,19 @@ def process_vk_messages(vk_user):
 # vk_api:       --------------------------------------------------------------------------------------------------------
 
 
+@IterCounter.step_counter
+def process_step(iter_counter, seal, vk_user, to_sleep=None):
+    if to_sleep:
+        time.sleep(to_sleep)
+    seal.receive_signals()
+
+    if not process_vk_messages(vk_user):
+        return False
+
+    print("*** process_step ---> seal's processing messages ...")
+    return True
+
+
 def process(config, run_mode, test_mode, only_for_uid):
     print("SealAccountManager process started...")
 
@@ -112,19 +126,13 @@ def process(config, run_mode, test_mode, only_for_uid):
     seal = SealAccountManager(seal_id, run_mode, SEAL_SIGNAL_SLOT_MAP)
     seal.bind_slots()
 
+    iter_counter = IterCounter(max_count=random.randint(30, 50), raise_exception=False)
+
     with prepare_vk_user(config, test_mode, run_mode, only_for_uid) as vk_user:
         while True:
             try:
-                # time.sleep(0.1)
-
-                seal.receive_signals()
-                # seal.publish_message(SOLVE_CAPTCHA_REQ,
-                #                      "seal -> manager: solve captcha for seal with id {}".format(seal.get_seal_id()))
-
-                if not process_vk_messages(vk_user):
+                if not process_step(iter_counter, seal, vk_user):
                     break
-
-                print("* seal's processing messages ...")
             except SealManagerException as e:
                 print(e)
                 break

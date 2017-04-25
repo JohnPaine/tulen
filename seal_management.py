@@ -84,9 +84,19 @@ class IterCounter:
 
     def count(self):
         self.counter += 1
+        print('IterCounter: {}'.format(self.counter))
         if self.raise_exception and self.counter > self.max_count:
             print("IterCounter loop limit reached - {}".format(self.max_count))
             raise SealManagerException("IterCounter loop limit reached - {}".format(self.max_count))
+
+    @staticmethod
+    def step_counter(f):
+        def wrapper(*args):
+            iter_counter = args[0]
+            if isinstance(iter_counter, IterCounter):
+                iter_counter.count()
+            return f(*args)
+        return wrapper
 
 
 # utils:        --------------------------------------------------------------------------------------------------------
@@ -194,9 +204,9 @@ class SealMode:
             account_manager = args[0]
             if not hasattr(account_manager, 'mode'):
                 return f(*args)
-            if account_manager.mode == SealMode.Breeder:
-                return f(*args)
-            return None
+            if account_manager.mode == SealMode.Standalone:
+                return None
+            return f(*args)
         return wrapper
 
 
