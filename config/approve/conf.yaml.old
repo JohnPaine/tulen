@@ -1,0 +1,34 @@
+.*тупой.*:
+    dict: stupid.txt
+.*\Bда\Z:
+    dict: yes.txt
+^.*\Bнет:
+    dict: no.txt
+.*тюлен.*что.*думаешь.*:
+    dict: opinions_think.txt
+    private_use: true
+.*тюлен.*как.*относишься.*:
+    dict: opinions_think.txt
+    private_use: true
+.*как.*дела.*:
+    dict: howyoudoing.txt
+.*расскажи.*о.*себе.*:
+    dict: my_life.txt
+    private_use: true
+.*тюлен.*:
+    dict: dict.txt
+    private_use: true
+.*тюлень.*я.*тебя.*люблю.*:
+    dict: love.txt
+.*люблю.*тебя.*:
+    dict: love.txt
+    private_use: true
+.*ахах.*: 
+    dict: dict3.txt
+.*тюлень.*крут.*:
+    dict: love.txt
+\Bбот:
+    dict: bot.txt
+.*что.*делае.*:
+    dict: doing.txt
+    private_use: true

@@ -84,9 +84,19 @@ class IterCounter:
 
     def count(self):
         self.counter += 1
+        print('IterCounter: {}'.format(self.counter))
         if self.raise_exception and self.counter > self.max_count:
             print("IterCounter loop limit reached - {}".format(self.max_count))
             raise SealManagerException("IterCounter loop limit reached - {}".format(self.max_count))
+
+    @staticmethod
+    def step_counter(f):
+        def wrapper(*args):
+            iter_counter = args[0]
+            if isinstance(iter_counter, IterCounter):
+                iter_counter.count()
+            return f(*args)
+        return wrapper
 
 
 # utils:        --------------------------------------------------------------------------------------------------------
@@ -180,6 +190,14 @@ def receive_signals_(channel, queue_name, inactivity_timeout=0.01):
 
 
 # account manager       ------------------------------------------------------------------------------------------------
+class BreederMode:
+    def __init__(self):
+        pass
+
+    NoMode = 'nomode'
+    TestMode = 'test_mode'
+
+
 class SealMode:
     def __init__(self):
         pass
@@ -189,14 +207,14 @@ class SealMode:
     Breeder = 'breeder'
 
     @staticmethod
-    def check_breeder_mode(f):
+    def check_standalone_mode(f):
         def wrapper(*args):
             account_manager = args[0]
             if not hasattr(account_manager, 'mode'):
                 return f(*args)
-            if account_manager.mode == SealMode.Breeder:
-                return f(*args)
-            return None
+            if account_manager.mode == SealMode.Standalone:
+                return None
+            return f(*args)
         return wrapper
 
 
@@ -225,7 +243,7 @@ class BaseAccountManager:
     def make_message(self, signal, manager='manager', seal_id=None):
         pass
 
-    @SealMode.check_breeder_mode
+    @SealMode.check_standalone_mode
     def publish_message(self, signal, message='', seal_id=None, manager='manager'):
         print('BaseAccountManager publishing message for signal: {}, message: {}'.format(signal, message))
         with setup_amqp_channel_() as self.publisher_connection:
@@ -234,7 +252,7 @@ class BaseAccountManager:
                 message = self.make_message(signal, manager, seal_id)
             publish_message_(self.publisher_connection.channel(), routing_key, message)
 
-    @SealMode.check_breeder_mode
+    @SealMode.check_standalone_mode
     def bind_slots(self, seal_id=None, manager='manager'):
         print('BaseAccountManager - connecting slots...')
         slot_map = {}
@@ -243,7 +261,7 @@ class BaseAccountManager:
             slot_map[routing_key] = slot
         bind_slots_(self.listener_connection.channel(), slot_map)
 
-    @SealMode.check_breeder_mode
+    @SealMode.check_standalone_mode
     def receive_signals(self, loop_limit=10):
         for _ in range(loop_limit):
             for queue_name in self.slot_map:
