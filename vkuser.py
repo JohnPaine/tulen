@@ -45,8 +45,7 @@ class VkUser(object):
         # captcha init: if no captcha section in config, pass it
         captcha_config = self.config.get("anticaptcha", None)
         if not captcha_config:
-            logger.warning("Anticaptcha cant be intialized: no config")
-
+            logger.warning("Anti-captcha cant be initialized: no config")
         else:
             service = captcha_config["service"]
             creds = captcha_config["credentials"]
@@ -134,7 +133,7 @@ class VkUser(object):
         [t.start() for t in self.msg_processors["general"]]
         [t.start() for t in self.msg_processors["parallel"]]
 
-        logger.info("Multithreading intialized: {}x{} grid.".format(
+        logger.info("Multithreading initialized: {}x{} grid.".format(
             msg_thread_count, mod_thread_count))
 
     def __enter__(self):
@@ -151,6 +150,7 @@ class VkUser(object):
         self.msg_processors = {}
         self.msg_queue = {}
         self.rate_limit_dispatch_process = None
+        self.action_stats = {}
 
         self.config = config
         if only_for_uid:
@@ -259,6 +259,7 @@ class VkUser(object):
                 logger.exception("Processing in parallel failed")
 
     # shorcuts for common-use vk-api requests
+    @SealMode.collect_vk_user_action_stats
     def send_message(self, text="", chatid=None, userid=None, attachments=None):
         if self.test_mode:
             print("test mode, printing message ---->> ", text, attachments)
@@ -304,6 +305,7 @@ class VkUser(object):
         logger.info("Got friends")
         return ret
 
+    @SealMode.collect_vk_user_action_stats
     def send_sticker(self, user_id, peer_id, chat_id, sticker_id=0):
         op = self.api.messages.sendSticker
 
@@ -328,6 +330,7 @@ class VkUser(object):
         logger.info("Sent sticker")
         return ret
 
+    @SealMode.collect_vk_user_action_stats
     def post(self, text, chatid, userid, attachments):
 
         oppost = self.api.wall.post
@@ -357,6 +360,7 @@ class VkUser(object):
 
         return photos
 
+    @SealMode.collect_vk_user_action_stats
     def upload_images_files(self, files):
         logger.info("Uploading message images...")
         op = self.api.photos.getMessagesUploadServer
@@ -382,6 +386,7 @@ class VkUser(object):
 
         return attachments
 
+    @SealMode.collect_vk_user_action_stats
     def upload_images_files_wall(self, files):
 
         logger.info("Uploading wall images...")
@@ -411,6 +416,7 @@ class VkUser(object):
 
         return attachments
 
+    @SealMode.collect_vk_user_action_stats
     def find_video(self, req):
         log.info("Looking for requested video")
         op = self.api.video.search
@@ -424,6 +430,7 @@ class VkUser(object):
             logger.exception("Video search failed")
             return None
 
+    @SealMode.collect_vk_user_action_stats
     def find_doc(self, req):
         log.info("Looking for document")
         op = self.api.docs.search
@@ -437,6 +444,7 @@ class VkUser(object):
             logger.exception("Document logging failed")
             return None
 
+    @SealMode.collect_vk_user_action_stats
     def find_wall(self, req):
         log.info("Looking for wall post")
         op = self.api.newsfeed.search
@@ -450,6 +458,7 @@ class VkUser(object):
             logger.exception("Wall post search failed")
             return None
 
+    @SealMode.collect_vk_user_action_stats
     def get_news(self, count=10):
         logger.info("Gathering newsfeed")
         op = self.api.newsfeed.get
@@ -457,12 +466,14 @@ class VkUser(object):
         resp = vkrequest.perform(op, args)
         return resp["items"]
 
+    @SealMode.collect_vk_user_action_stats
     def like_post(self, post_id, owner_id):
         logger.info("Liking post")
         op = self.api.likes.add
         args = {"type": "post", "item_id": post_id, "owner_id": owner_id}
         resp = vkrequest.perform(op, args)
 
+    @SealMode.collect_vk_user_action_stats
     def friendStatus(self, user_ids):
         logger.info("Getting friend status")
         op = self.api.friends.areFriends
@@ -470,6 +481,7 @@ class VkUser(object):
         resp = vkrequest.perform(op, args)
         return resp
 
+    @SealMode.collect_vk_user_action_stats
     def getUser(self, userid, fields, name_case):
         logger.info("Getting user information")
         op = self.api.users.get
@@ -477,6 +489,7 @@ class VkUser(object):
         resp = vkrequest.perform(op, args)
         return resp[0]
 
+    @SealMode.collect_vk_user_action_stats
     def friendAdd(self, user_id):
         logger.info("Adding to friends uid: {}".format(user_id))
         op = self.api.friends.add
@@ -484,6 +497,7 @@ class VkUser(object):
         resp = vkrequest.perform(op, args)
         return True
 
+    @SealMode.collect_vk_user_action_stats
     def getRequests(self):
         logger.info("Getting  friends requests")
         op = self.api.friends.getRequests

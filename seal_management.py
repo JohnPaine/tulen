@@ -40,6 +40,7 @@ SOLVE_CAPTCHA_REQ = "solve_captcha_request"
 
 # seal -> manager  signals (one-way messages)
 SEND_STATS_MSG = "send_stats"
+SEAL_EXCEPTION_OCCURRED_MSG = "seal_exception"
 
 # seal -> manager  signals (responses on requests)
 SOLVE_CAPTCHA_CMD_RESP = "solve_captcha_cmd_response"
@@ -57,6 +58,16 @@ AMQP_SERVER = "localhost"
 AMQP_USER = "seal"
 AMQP_PASS = "seal2017"
 AMQP_VHOST = "/"
+
+SEND_STATS_MSG_format = 'seal_id:{}, action:{}, times: {}, args_str: {}'
+SEAL_EXCEPTION_OCCURRED_MSG_format = 'seal_id:{}, critical exception occurred: {}'
+
+
+class VkUserStats:
+    def __init__(self, action_name, args_str):
+        self.action = action_name
+        self.times = 0
+        self.args_str = [args_str]
 
 
 # utils:        --------------------------------------------------------------------------------------------------------
@@ -96,6 +107,7 @@ class IterCounter:
             if isinstance(iter_counter, IterCounter):
                 iter_counter.count()
             return f(*args)
+
         return wrapper
 
 
@@ -186,6 +198,7 @@ def receive_signals_(channel, queue_name, inactivity_timeout=0.01):
 
     channel.cancel()
 
+
 # amqp management:      ------------------------------------------------------------------------------------------------
 
 
@@ -215,6 +228,24 @@ class SealMode:
             if account_manager.mode == SealMode.Standalone:
                 return None
             return f(*args)
+
+        return wrapper
+
+    @staticmethod
+    def collect_vk_user_action_stats(f):
+        def wrapper(*args, **kwargs):
+            vk_user = args[0]
+            if not vk_user:
+                return f(*args, **kwargs)
+            action_name = f.__name__
+            print('collect_vk_user_action_stats for method: {}'.format(action_name))
+            if not action_name in vk_user.action_stats:
+                vk_user.action_stats[action_name] = VkUserStats(action_name, str(locals()))
+            else:
+                vk_user.action_stats[action_name].times += 1
+                vk_user.action_stats[action_name].args.append(str(locals()))
+            return f(*args, **kwargs)
+
         return wrapper
 
 

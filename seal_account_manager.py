@@ -14,9 +14,6 @@ class SealAccountManager(BaseAccountManager):
     def __exit__(self, exc_type, exc_val, exc_tb):
         print('SealAccountManager.__exit__')
 
-    def get_seal_id(self):
-        return self.seal_id
-
     def make_signal_routing_key(self, signal, manager='manager', seal_id=None):
         return '{}.{}.{}'.format(signal, self.seal_id, manager)
 

@@ -9,7 +9,6 @@ class SealBreeder(BaseAccountManager):
         super().__init__(slot_map)
         self.seals = {}
         self.SEALS_PROCESSES = []
-        self.config_files = []
         self.mode = BreederMode.NoMode
 
     def __enter__(self):
@@ -23,7 +22,6 @@ class SealBreeder(BaseAccountManager):
         return self.seals
 
     def register_seal(self, seal_id, seal_process, config_file_name):
-        # self.seals[seal_id] = seal_process
         SealConfig = namedtuple('SealConfig', ['seal_id', 'process', 'config_file_name'])
         self.seals[seal_id] = SealConfig(seal_id, seal_process, config_file_name)
 
@@ -66,21 +64,16 @@ class SealBreeder(BaseAccountManager):
 
     def check_alive(self):
         print('Seal breeder checking seals for running')
-        for config_file in self.config_files:
-            seal_id = SealBreeder.get_seal_id(config_file)
-
-            if self.seals[seal_id].process.poll() is None:
+        for seal_id, seal_config in self.seals.items():
+            if seal_config.process.poll() is None:
                 continue
 
-            config_file_name = self.seals[seal_id].config_file_name
-            self.start_seal_process(seal_id, config_file_name)
+            self.start_seal_process(seal_id, seal_config.config_file_name)
 
     def start_seals(self, config_files, mode):
-        self.config_files = []
         self.mode = mode
         for config_file_name in config_files:
             seal_id, seal_config = SealBreeder.get_config(config_file_name)
-            self.config_files.append(seal_config)
 
             self.start_seal_process(seal_id, config_file_name)
 
@@ -93,7 +86,7 @@ class SealBreeder(BaseAccountManager):
         print(config_file_name)
 
         seal_config = yaml.load(open(config_file_name))
-        return seal_config['access_token']['user_id'], seal_config
+        return SealBreeder.get_seal_id(seal_config), seal_config
 
     @staticmethod
     def prepare_log_file(config_file_name):

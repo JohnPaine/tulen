@@ -81,6 +81,38 @@ SEAL_SIGNAL_SLOT_MAP = {ADD_FRIEND_CMD: on_add_friend_cmd,
 
 
 # vk_api:       --------------------------------------------------------------------------------------------------------
+def try_pull_args(stats, skip=True):
+    try:
+        if skip:
+            return '{Skipped}'
+        return ''.join(str(stats.args_str))
+    except Exception as e:
+        print('\t\t->> {}'.format(e))
+        return '{None}'
+
+
+def send_action_stats(seal, vk_user):
+    print('send_action_stats for seal_id: {}'.format(seal.seal_id))
+
+    message = ""
+    times = 0
+    for action_name, stats in vk_user.action_stats.items():
+        if isinstance(stats, VkUserStats):
+            if stats.times > 0:
+                message += SEND_STATS_MSG_format.format(seal.seal_id,
+                                                        action_name,
+                                                        stats.times,
+                                                        try_pull_args(stats) + '\n')
+                print('\taction stats message: {}'.format(message))
+            times += stats.times
+
+    if not len(message) or not times:
+        print('send_action_stats: message is empty!')
+        return
+    seal.publish_message(SEND_STATS_MSG, message)
+    vk_user.action_stats.clear()
+
+
 def prepare_vk_user(config, test_mode, run_mode, only_for_uid):
     vk_user = VkUser(config, test_mode, run_mode, only_for_uid)
 
@@ -96,8 +128,7 @@ def process_vk_messages(vk_user):
         vk_user.process_messages(msg)
     except Exception as e:
         logger.exception("Something wrong while processing vk messages: {}".format(e))
-        if vk_user.test_mode:
-            return False
+        raise
 
     return True
 
@@ -112,6 +143,9 @@ def process_step(iter_counter, seal, vk_user, to_sleep=None):
 
     if not process_vk_messages(vk_user):
         return False
+
+    if iter_counter.counter % 10 == 0:
+        send_action_stats(seal, vk_user)
 
     print("*** process_step ---> seal's processing messages ...")
     return True
@@ -132,12 +166,17 @@ def process(config, run_mode, test_mode, only_for_uid):
         while True:
             try:
                 if not process_step(iter_counter, seal, vk_user):
+                    seal.publish_message(SEAL_EXCEPTION_OCCURRED_MSG,
+                                         SEAL_EXCEPTION_OCCURRED_MSG_format.format(
+                                             seal.seal_id, 'seal finishes after vk_user exception'))
                     break
             except SealManagerException as e:
                 print(e)
                 break
             except Exception as e:
                 print('exception occurred in seal process: {}'.format(e))
+                seal.publish_message(SEAL_EXCEPTION_OCCURRED_MSG,
+                                     SEAL_EXCEPTION_OCCURRED_MSG_format.format(seal.seal_id, e))
                 break
 
     print("SealAccountManager process finished...")

@@ -8,14 +8,36 @@ import time
 
 # slots:        --------------------------------------------------------------------------------------------------------
 def on_solve_captcha_request(channel, method, header, body):
-    """Accepts solve-captcha command from seal."""
+    """Accepts solve-captcha request from seal."""
 
     print("on_solve_captcha_request, body - {}, header - {}, method - {}".format(body, header, method))
 
     channel.basic_ack(delivery_tag=method.delivery_tag)
 
+
+def on_send_stats_message(channel, method, header, body):
+    """Accepts send-stats message from seal."""
+
+    print("on_send_stats_message, body - {}, header - {}, method - {}".format(body, header, method))
+
+    stats_messages = body.splitlines()
+    for message in stats_messages:
+        print('\ton_send_stats_message message: {}'.format(message))
+
+    channel.basic_ack(delivery_tag=method.delivery_tag)
+
+
+def on_seal_exception_message(channel, method, header, body):
+    """Accepts seal-exception message from seal."""
+
+    print("on_seal_exception_message, body - {}, header - {}, method - {}".format(body, header, method))
+
+    channel.basic_ack(delivery_tag=method.delivery_tag)
+
 # exchange(signal) - slot (from seal to manager)
-MANAGER_SIGNAL_SLOT_MAP = {SOLVE_CAPTCHA_REQ: on_solve_captcha_request}
+MANAGER_SIGNAL_SLOT_MAP = {SOLVE_CAPTCHA_REQ: on_solve_captcha_request,
+                           SEND_STATS_MSG: on_send_stats_message,
+                           SEAL_EXCEPTION_OCCURRED_MSG: on_seal_exception_message}
 
 # slots:        --------------------------------------------------------------------------------------------------------
 
@@ -45,8 +67,9 @@ def process(config, mode):
 
             # TODO:
             # 1. Seal running checks - DONE
-            # 2. Statistics
-            # 3. Logging errors/exception in seal breeder
+            # 2. Statistics - DONE
+            # 3. Logging errors/exception in seal breeder - DONE
+            # 4. join/leave group???
 
         except SealManagerException as e:
             print(e)
