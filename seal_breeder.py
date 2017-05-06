@@ -4,6 +4,7 @@
 import argparse
 from seal_breeder_account_manager import *
 import time
+from parse import compile as parse_compile
 
 
 # slots:        --------------------------------------------------------------------------------------------------------
@@ -20,9 +21,33 @@ def on_send_stats_message(channel, method, header, body):
 
     print("on_send_stats_message, body - {}, header - {}, method - {}".format(body, header, method))
 
+    stats_parser = parse_compile(SEND_STATS_MSG_format)
+
     stats_messages = body.splitlines()
     for message in stats_messages:
-        print('\ton_send_stats_message message: {}'.format(message))
+        decoded_message = message.decode('utf-8')
+        print('\ton_send_stats_message message: {}'.format(decoded_message))
+
+        parsed = stats_parser.parse(decoded_message)
+
+        if not parsed:
+            continue
+
+        seal = seal_breeder.get_seals().get(int(parsed[0]))
+
+        if not seal:
+            print('seal is None!!!')
+            continue
+        print('\tcollecting stats for seal: {}'.format(seal))
+
+        action_name = parsed[1]
+        times = int(parsed[2])
+        load_balancing = bool(parsed[3])
+        chat_count = int(parsed[4])
+        seal.action_stats[action_name] += times
+        seal.chat_count = chat_count
+        if load_balancing:
+            seal.lb_action_stats[action_name] += times
 
     channel.basic_ack(delivery_tag=method.delivery_tag)
 
@@ -33,6 +58,7 @@ def on_seal_exception_message(channel, method, header, body):
     print("on_seal_exception_message, body - {}, header - {}, method - {}".format(body, header, method))
 
     channel.basic_ack(delivery_tag=method.delivery_tag)
+
 
 # exchange(signal) - slot (from seal to manager)
 MANAGER_SIGNAL_SLOT_MAP = {SOLVE_CAPTCHA_REQ: on_solve_captcha_request,
@@ -52,6 +78,7 @@ def process_step(iter_counter, breeder):
 
     if iter_counter.counter % 20 == 0:
         breeder.check_alive()
+        breeder.balance_seals()
 
 
 def process(config, mode):
@@ -69,7 +96,7 @@ def process(config, mode):
             # 1. Seal running checks - DONE
             # 2. Statistics - DONE
             # 3. Logging errors/exception in seal breeder - DONE
-            # 4. join/leave group???
+            # 4. join/leave chat
 
         except SealManagerException as e:
             print(e)
@@ -79,6 +106,8 @@ def process(config, mode):
             break
         except Exception as e:
             print('exception occurred in manager process: {}'.format(e))
+            seal_breeder.finish_seals()
+            time.sleep(1)
             raise
 
     print("Manager process finished...")

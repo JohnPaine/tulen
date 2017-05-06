@@ -6,6 +6,7 @@ class SealAccountManager(BaseAccountManager):
         super().__init__(slot_map)
         self.seal_id = seal_id
         self.mode = mode
+        self.vk_user = None
 
     def __enter__(self):
         print('SealAccountManager.__enter__')

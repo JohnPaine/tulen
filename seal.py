@@ -8,6 +8,8 @@ from seal_account_manager import *
 import logging.config
 from vkuser import VkUser
 import random
+from parse import compile as parse_compile
+import json
 
 # logging:      --------------------------------------------------------------------------------------------------------
 LOG_SETTINGS = {
@@ -37,7 +39,6 @@ LOG_SETTINGS = {
 logging.config.dictConfig(LOG_SETTINGS)
 logger = logging.getLogger("seal")
 
-
 # logging:      --------------------------------------------------------------------------------------------------------
 
 
@@ -61,6 +62,32 @@ def on_join_chat_cmd(channel, method, header, body):
     channel.basic_ack(delivery_tag=method.delivery_tag)
 
 
+def on_replace_in_chat_cmd(channel, method, header, body):
+    """Accepts replace-in-chat command from manager."""
+
+    print("on_replace_in_chat_cmd, body - {}, header - {}, method - {}".format(body, header, method))
+
+    cmd_parser = parse_compile(REPLACE_IN_CHAT_CMD_format)
+    parsed = cmd_parser.parse(body.decode('utf-8'))
+
+    replacing_seal_id = parsed[0]
+    chat_id = parsed[1]
+    chat_num = parsed[2]
+
+    dialog_list = seal.vk_user.get_dialogs()
+    print('\tdialog list length: {}'.format(len(dialog_list)))
+    for dialog in dialog_list:
+        # print('\t\tdialog: {}'.format(dialog))
+        message = dialog['message']
+        if 'chat_id' not in message:
+            continue
+        print('\t\t\tCHAT_ID: {}'.format(message['chat_id']))
+
+    # print('\tdialog_list: {}'.format(json.dumps(dialog_list, indent=4)))
+
+    channel.basic_ack(delivery_tag=method.delivery_tag)
+
+
 def on_stop_seal_cmd(channel, method, header, body):
     """Accepts stop-seal command from manager."""
 
@@ -75,7 +102,9 @@ def on_stop_seal_cmd(channel, method, header, body):
 # signal - slot (from manager to seal)
 SEAL_SIGNAL_SLOT_MAP = {ADD_FRIEND_CMD: on_add_friend_cmd,
                         JOIN_CHAT_CMD: on_join_chat_cmd,
-                        STOP_SEAL_CMD: on_stop_seal_cmd}
+                        STOP_SEAL_CMD: on_stop_seal_cmd,
+                        REPLACE_IN_CHAT_CMD: on_replace_in_chat_cmd}
+
 
 # slots:        --------------------------------------------------------------------------------------------------------
 
@@ -85,32 +114,36 @@ def try_pull_args(stats, skip=True):
     try:
         if skip:
             return '{Skipped}'
-        return ''.join(str(stats.args_str))
+        return ''.join(stats.args)
     except Exception as e:
         print('\t\t->> {}'.format(e))
         return '{None}'
 
 
-def send_action_stats(seal, vk_user):
+def send_action_stats(seal):
     print('send_action_stats for seal_id: {}'.format(seal.seal_id))
 
     message = ""
     times = 0
-    for action_name, stats in vk_user.action_stats.items():
-        if isinstance(stats, VkUserStats):
+    dialog_list = seal.vk_user.get_dialogs()
+    chat_count = len([dialog['message']['chat_id'] for dialog in dialog_list if 'chat_id' in dialog['message']])
+    for action_name, stats in seal.vk_user.action_stats.items():
+        if isinstance(stats, VkUserStatsAction):
             if stats.times > 0:
                 message += SEND_STATS_MSG_format.format(seal.seal_id,
                                                         action_name,
                                                         stats.times,
+                                                        action_name in LOAD_BALANCED_ACTIONS,
+                                                        chat_count,
                                                         try_pull_args(stats) + '\n')
                 print('\taction stats message: {}'.format(message))
-            times += stats.times
+                times += stats.times
 
     if not len(message) or not times:
         print('send_action_stats: message is empty!')
         return
     seal.publish_message(SEND_STATS_MSG, message)
-    vk_user.action_stats.clear()
+    seal.vk_user.action_stats.clear()
 
 
 def prepare_vk_user(config, test_mode, run_mode, only_for_uid):
@@ -130,25 +163,22 @@ def process_vk_messages(vk_user):
         logger.exception("Something wrong while processing vk messages: {}".format(e))
         raise
 
-    return True
 
 # vk_api:       --------------------------------------------------------------------------------------------------------
 
 
 @IterCounter.step_counter
-def process_step(iter_counter, seal, vk_user, to_sleep=None):
+def process_step(iter_counter, seal, to_sleep=None):
     if to_sleep:
         time.sleep(to_sleep)
     seal.receive_signals()
 
-    if not process_vk_messages(vk_user):
-        return False
+    process_vk_messages(seal.vk_user)
 
     if iter_counter.counter % 10 == 0:
-        send_action_stats(seal, vk_user)
+        send_action_stats(seal)
 
     print("*** process_step ---> seal's processing messages ...")
-    return True
 
 
 def process(config, run_mode, test_mode, only_for_uid):
@@ -163,13 +193,10 @@ def process(config, run_mode, test_mode, only_for_uid):
     iter_counter = IterCounter(max_count=random.randint(30, 50), raise_exception=False)
 
     with prepare_vk_user(config, test_mode, run_mode, only_for_uid) as vk_user:
+        seal.vk_user = vk_user
         while True:
             try:
-                if not process_step(iter_counter, seal, vk_user):
-                    seal.publish_message(SEAL_EXCEPTION_OCCURRED_MSG,
-                                         SEAL_EXCEPTION_OCCURRED_MSG_format.format(
-                                             seal.seal_id, 'seal finishes after vk_user exception'))
-                    break
+                process_step(iter_counter, seal)
             except SealManagerException as e:
                 print(e)
                 break

@@ -3,7 +3,8 @@
 
 import pika
 import os
-from abc import ABCMeta, abstractmethod
+from abc import abstractmethod
+from functools import wraps
 
 ########################################################################################################################
 # Idea explanation
@@ -29,6 +30,7 @@ from abc import ABCMeta, abstractmethod
 ADD_FRIEND_CMD = "add_friend"
 JOIN_CHAT_CMD = "join_chat"
 QUIT_CHAT_CMD = "quit_chat"
+REPLACE_IN_CHAT_CMD = "replace_in_chat"
 SOLVE_CAPTCHA_CMD = "solve_captcha_cmd"
 STOP_SEAL_CMD = "stop_seal"
 
@@ -59,15 +61,18 @@ AMQP_USER = "seal"
 AMQP_PASS = "seal2017"
 AMQP_VHOST = "/"
 
-SEND_STATS_MSG_format = 'seal_id:{}, action:{}, times: {}, args_str: {}'
-SEAL_EXCEPTION_OCCURRED_MSG_format = 'seal_id:{}, critical exception occurred: {}'
+SEND_STATS_MSG_format = 'seal_id: {}, action: {}, times: {}, load_balancing: {}, chat_count: {}, args_str: {}'
+SEAL_EXCEPTION_OCCURRED_MSG_format = 'seal_id: {}, critical exception occurred: {}'
+REPLACE_IN_CHAT_CMD_format = 'replacing_seal_id: {}, chat_id: {}, chat_num: {}'
+
+LOAD_BALANCED_ACTIONS = []
 
 
-class VkUserStats:
+class VkUserStatsAction:
     def __init__(self, action_name, args_str):
         self.action = action_name
-        self.times = 0
-        self.args_str = [args_str]
+        self.times = 1
+        self.args = [args_str]
 
 
 # utils:        --------------------------------------------------------------------------------------------------------
@@ -76,6 +81,11 @@ def rem_file(name):
         os.remove(name)
     except OSError:
         pass
+
+
+def create_dir(path):
+    if not os.path.exists(path):
+        os.makedirs(path)
 
 
 class SealManagerException(Exception):
@@ -115,7 +125,7 @@ class IterCounter:
 
 
 # amqp management:      ------------------------------------------------------------------------------------------------
-def setup_amqp_channel_(use_credentials=False):
+def setup_amqp_connection_(use_credentials=False):
     if use_credentials:
         creds_broker = pika.PlainCredentials(AMQP_USER, AMQP_PASS)
     else:
@@ -232,18 +242,33 @@ class SealMode:
         return wrapper
 
     @staticmethod
-    def collect_vk_user_action_stats(f):
+    def collect_vk_user_action_stats(f, collect_args=False):
+        @wraps(f)
         def wrapper(*args, **kwargs):
             vk_user = args[0]
             if not vk_user:
                 return f(*args, **kwargs)
             action_name = f.__name__
             print('collect_vk_user_action_stats for method: {}'.format(action_name))
-            if not action_name in vk_user.action_stats:
-                vk_user.action_stats[action_name] = VkUserStats(action_name, str(locals()))
+
+            args_str = str(locals()) if collect_args else ''
+            if action_name not in vk_user.action_stats:
+                vk_user.action_stats[action_name] = VkUserStatsAction(action_name, args_str)
             else:
                 vk_user.action_stats[action_name].times += 1
-                vk_user.action_stats[action_name].args.append(str(locals()))
+                vk_user.action_stats[action_name].args.append(args_str)
+            return f(*args, **kwargs)
+
+        return wrapper
+
+    @staticmethod
+    def mark_action_load_balancing(f):
+        @wraps(f)
+        def wrapper(*args, **kwargs):
+            action_name = f.__name__
+            print('seal vk_user - marking action: {} as load-balancing!'.format(action_name))
+            if action_name not in LOAD_BALANCED_ACTIONS:
+                LOAD_BALANCED_ACTIONS.append(action_name)
             return f(*args, **kwargs)
 
         return wrapper
@@ -252,7 +277,8 @@ class SealMode:
 class BaseAccountManager:
     def __init__(self, slot_map):
         self.slot_map = slot_map
-        self.listener_connection = setup_amqp_channel_()
+        self.listener_connection = setup_amqp_connection_()
+        self.listener_channel = self.listener_connection.channel()
         self.publisher_connection = None
 
     def __enter__(self):
@@ -277,7 +303,7 @@ class BaseAccountManager:
     @SealMode.check_standalone_mode
     def publish_message(self, signal, message='', seal_id=None, manager='manager'):
         print('BaseAccountManager publishing message for signal: {}, message: {}'.format(signal, message))
-        with setup_amqp_channel_() as self.publisher_connection:
+        with setup_amqp_connection_() as self.publisher_connection:
             routing_key = self.make_signal_routing_key(signal, manager, seal_id)
             if not message:
                 message = self.make_message(signal, manager, seal_id)
@@ -290,12 +316,12 @@ class BaseAccountManager:
         for queue_name, slot in self.slot_map.items():
             routing_key = self.make_slot_routing_key(queue_name, manager, seal_id)
             slot_map[routing_key] = slot
-        bind_slots_(self.listener_connection.channel(), slot_map)
+        bind_slots_(self.listener_channel, slot_map)
 
     @SealMode.check_standalone_mode
     def receive_signals(self, loop_limit=10):
         for _ in range(loop_limit):
             for queue_name in self.slot_map:
-                receive_signals_(self.listener_connection.channel(), queue_name)
+                receive_signals_(self.listener_channel, queue_name)
 
 # account manager       ------------------------------------------------------------------------------------------------

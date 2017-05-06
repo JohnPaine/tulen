@@ -144,6 +144,12 @@ class VkUser(object):
             print('Exiting vk_user instance - calling self.rate_limit_dispatch_process.terminate()')
             self.rate_limit_dispatch_process.terminate()
             self.rate_limit_dispatch_process.join(5)
+        for thread in self.msg_processors['general']:
+            thread.do_run = False
+            thread.join(5)
+        for thread in self.msg_processors['parallel']:
+            thread.do_run = False
+            thread.join(5)
 
     def __init__(self, config, test_mode, run_mode, only_for_uid):
         self.modules = {"global": [], "unique": [], "parallel": []}
@@ -227,7 +233,9 @@ class VkUser(object):
                     return True
             return False
 
-        while True:
+        t = threading.currentThread()
+
+        while getattr(t, "do_run", True):
             try:
                 message = self.msg_queue["general"].get()
 
@@ -248,7 +256,9 @@ class VkUser(object):
                 logger.exception("Processing in general failed")
 
     def process_message_parallel(self):
-        while True:
+        t = threading.currentThread()
+
+        while getattr(t, "do_run", True):
             try:
                 message, module_index = self.msg_queue["parallel"].get()
                 logger.debug("Parallel message processing in {}"
@@ -258,8 +268,9 @@ class VkUser(object):
             except:
                 logger.exception("Processing in parallel failed")
 
-    # shorcuts for common-use vk-api requests
+    # shortcuts for common-use vk-api requests
     @SealMode.collect_vk_user_action_stats
+    @SealMode.mark_action_load_balancing
     def send_message(self, text="", chatid=None, userid=None, attachments=None):
         if self.test_mode:
             print("test mode, printing message ---->> ", text, attachments)
@@ -306,6 +317,7 @@ class VkUser(object):
         return ret
 
     @SealMode.collect_vk_user_action_stats
+    @SealMode.mark_action_load_balancing
     def send_sticker(self, user_id, peer_id, chat_id, sticker_id=0):
         op = self.api.messages.sendSticker
 
@@ -320,7 +332,7 @@ class VkUser(object):
 
         ret = vkrequest.perform(op, args)
 
-        # wtf???
+        # wtf??? - if send_sticker error (e.g. sticker missing) - trying again
         if ret == 100 or (900 <= ret <= 902):
             logger.warning("Sent sticker response is {}".format(repr(ret)))
             args["random_id"] = random.randint(0xfff, 0xffffff)
@@ -331,14 +343,15 @@ class VkUser(object):
         return ret
 
     @SealMode.collect_vk_user_action_stats
+    @SealMode.mark_action_load_balancing
     def post(self, text, chatid, userid, attachments):
 
-        oppost = self.api.wall.post
+        op_post = self.api.wall.post
         args = {"owner_id": self.my_uid, "message": text,
                 "attachments": ",".join(attachments)}
 
-        ret = rated_operation(oppost, args)
-        log.info("Wall post created")
+        ret = rated_operation(op_post, args)
+        logger.info("Wall post created")
 
         return ret
 
@@ -417,6 +430,7 @@ class VkUser(object):
         return attachments
 
     @SealMode.collect_vk_user_action_stats
+    @SealMode.mark_action_load_balancing
     def find_video(self, req):
         log.info("Looking for requested video")
         op = self.api.video.search
@@ -431,6 +445,7 @@ class VkUser(object):
             return None
 
     @SealMode.collect_vk_user_action_stats
+    @SealMode.mark_action_load_balancing
     def find_doc(self, req):
         log.info("Looking for document")
         op = self.api.docs.search
@@ -445,8 +460,9 @@ class VkUser(object):
             return None
 
     @SealMode.collect_vk_user_action_stats
+    @SealMode.mark_action_load_balancing
     def find_wall(self, req):
-        log.info("Looking for wall post")
+        logger.info("Looking for a wall post")
         op = self.api.newsfeed.search
         args = {"q": req, "count": 1}
         resp = vkrequest.perform(op, args)
@@ -504,3 +520,24 @@ class VkUser(object):
         args = {}
         resp = vkrequest.perform(op, args)
         return resp["items"]
+
+    def get_dialogs(self, offset=0, count=200):
+        op = self.api.messages.getDialogs
+        args = {"offset": offset, "count": count}
+        resp = vkrequest.perform(op, args)
+
+        items = list(resp['items'])
+
+        if resp['count'] > offset + count:
+            new_count = resp['count'] - (offset + count)
+            offset = count
+            print('get_dialogs, new_count: {}, new_offset: {}'.format(new_count, offset))
+            items.append(self.get_dialogs(offset, new_count))
+
+        return items
+
+    def join_chat(self):
+        pass
+
+    def leave_chat(self):
+        pass

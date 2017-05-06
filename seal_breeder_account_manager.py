@@ -1,7 +1,21 @@
 import subprocess
 import yaml
-from collections import namedtuple
 from seal_management import *
+from functools import reduce
+from collections import defaultdict, OrderedDict
+from operator import itemgetter
+
+
+class SealConfig:
+    def __init__(self, seal_id, seal_process, config_file_name, run_time):
+        self.seal_id = seal_id
+        self.process = seal_process
+        self.config_file_name = config_file_name
+        self.action_stats = defaultdict(int)
+        # load-balancing actions
+        self.lb_action_stats = defaultdict(int)
+        self.chat_count = 0
+        self.run_time = run_time
 
 
 class SealBreeder(BaseAccountManager):
@@ -21,9 +35,8 @@ class SealBreeder(BaseAccountManager):
     def get_seals(self):
         return self.seals
 
-    def register_seal(self, seal_id, seal_process, config_file_name):
-        SealConfig = namedtuple('SealConfig', ['seal_id', 'process', 'config_file_name'])
-        self.seals[seal_id] = SealConfig(seal_id, seal_process, config_file_name)
+    def register_seal(self, seal_id, seal_process, config_file_name, run_time):
+        self.seals[seal_id] = SealConfig(seal_id, seal_process, config_file_name, run_time)
 
     def make_signal_routing_key(self, signal, manager='manager', seal_id=None):
         return '{}.{}.{}'.format(signal, manager, seal_id)
@@ -35,7 +48,8 @@ class SealBreeder(BaseAccountManager):
         return 'signal:{} from {} to seal:{}'.format(signal, manager, seal_id)
 
     def publish_message(self, signal, message='', seal_id=None, manager='manager'):
-        print('Seal breeder publishing message for signal: {}, seal_id: {}, message: {}'.format(signal, seal_id, message))
+        print(
+            'Seal breeder publishing message: {} for signal: {}, seal_id: {}'.format(message, signal, seal_id))
         super().publish_message(signal, message, seal_id, manager)
 
     def bind_slots(self, seal_id=None, manager='manager'):
@@ -57,10 +71,14 @@ class SealBreeder(BaseAccountManager):
 
     def start_seal_process(self, seal_id, config_file_name):
         print('starting seal process for seal_id: {} and config_file: {}'.format(seal_id, config_file_name))
-        log_file_name = SealBreeder.prepare_log_file(config_file_name)
+        run_time = 1
+        if seal_id in self.seals:
+            run_time = self.seals[seal_id].run_time + 1
+
+        log_file_name = SealBreeder.prepare_log_file('./seal_logs', config_file_name, run_time)
 
         seal_process = SealBreeder.start_seal(config_file_name, log_file_name, self.mode)
-        self.register_seal(seal_id, seal_process, config_file_name)
+        self.register_seal(seal_id, seal_process, config_file_name, run_time)
 
     def check_alive(self):
         print('Seal breeder checking seals for running')
@@ -78,6 +96,34 @@ class SealBreeder(BaseAccountManager):
             self.start_seal_process(seal_id, config_file_name)
 
     @staticmethod
+    def choose_seals_for_balancing(sorted_balancing_list):
+        # TODO: choose some appropriate algorithm!!
+        if len(sorted_balancing_list) < 2:
+            return None, None
+        return sorted_balancing_list[0], sorted_balancing_list[-1]
+
+    def balance_seals(self):
+        balancing_dict = {}
+        for seal_id, seal_config in self.seals.items():
+            if not len(seal_config.lb_action_stats):
+                continue
+            times_sum = reduce(lambda x, y: x + y,
+                               [times for action, times in seal_config.lb_action_stats.items()])
+            balancing_dict[seal_id] = times_sum
+
+        sorted_balancing_list = [(key, value) for key, value in
+                                 sorted(balancing_dict.items(), key=itemgetter(1), reverse=True)]
+        print('sorted_balancing_list - {}'.format(sorted_balancing_list))
+
+        replaceable_seal_stats, replacing_seal_stats = SealBreeder.choose_seals_for_balancing(sorted_balancing_list)
+        print('\tBALANCING seals, replaceable: {}, replacing: {}'.format(replaceable_seal_stats, replacing_seal_stats))
+        if not replaceable_seal_stats or not replacing_seal_stats:
+            print('\tunable to choose seals for balancing')
+            return
+        replace_cmd = REPLACE_IN_CHAT_CMD_format.format(replacing_seal_stats[0], 'any', 10)
+        self.publish_message(REPLACE_IN_CHAT_CMD, replace_cmd, replaceable_seal_stats[0])
+
+    @staticmethod
     def get_seal_id(config_file):
         return config_file['access_token']['user_id']
 
@@ -89,9 +135,10 @@ class SealBreeder(BaseAccountManager):
         return SealBreeder.get_seal_id(seal_config), seal_config
 
     @staticmethod
-    def prepare_log_file(config_file_name):
-        # TODO: where we put output???
-        log_file_name = str(config_file_name) + '.log'
+    def prepare_log_file(dir_path, config_file_name, run_time):
+        create_dir(dir_path)
+        # TODO: where and how we store output???
+        log_file_name = os.path.join(dir_path, str(config_file_name) + '_#{}_'.format(run_time) + '.log')
         rem_file(log_file_name)
         return log_file_name
 
@@ -102,4 +149,3 @@ class SealBreeder(BaseAccountManager):
                                         '-t ' if mode == BreederMode.TestMode else '',
                                         log_file_name),
                                 shell=True)
-
