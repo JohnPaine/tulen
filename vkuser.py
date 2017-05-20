@@ -10,7 +10,7 @@ import multiprocessing
 
 import vk
 import vkrequest
-from seal_account_manager import SealMode
+from seal_management import SealMode
 
 sys.path.append("./modules")
 logger = logging.getLogger('seal')
@@ -212,15 +212,24 @@ class VkUser(object):
             logger.exception("Error in global modules processing")
 
     def process_message_in_module(self, module, message):
+        # because VK wants only user_id or chat_id, and chat_id in priority
+        chat_id = message.get("chat_id", None)
+        user_id = None
 
-        # because VK want only user_id or chat_id, and chat_id in priority
-        chatid = message.get("chat_id", None)
-        userid = None
+        if not chat_id:
+            user_id = message.get("user_id", None)
+        else:
+            pass
+            # checking if this chat_id is in disabled_chats list
+            # TODO: check!!!
+            # if str(chat_id) in self.config['disabled_chats']:
+            #     logger.info(
+            #         "process_message_in_module: skipping messages from chat_id:{} as it's in disabled_chats list: {}"
+            #     .format(str(chat_id), self.config['disabled_chats']))
+            #     return True
+            # logger.info("process_message_in_module: chat_id:{} is not in disabled_chats list: {} - processing...")
 
-        if not chatid:
-            userid = message.get("user_id", None)
-
-        return module.process_message(message, chatid, userid)
+        return module.process_message(message, chat_id, user_id)
 
     # general processing thread: picks messages from general queue
 
@@ -239,7 +248,7 @@ class VkUser(object):
             try:
                 message = self.msg_queue["general"].get()
 
-                # if one of the uniq modules returned true, do not process
+                # if one of the unique modules returned true, do not process
                 # message next
                 if process_in_unique_modules(message):
                     # pick new message
@@ -275,6 +284,10 @@ class VkUser(object):
         if self.test_mode:
             print("test mode, printing message ---->> ", text, attachments)
             return
+
+        if not text and not attachments:
+            logger.critical('VK_API: cannot send empty message without attachments!')
+            return None
 
         if not attachments:
             attachments = {}
@@ -350,7 +363,7 @@ class VkUser(object):
         args = {"owner_id": self.my_uid, "message": text,
                 "attachments": ",".join(attachments)}
 
-        ret = rated_operation(op_post, args)
+        ret = vkrequest.perform(op_post, args)
         logger.info("Wall post created")
 
         return ret
@@ -407,6 +420,7 @@ class VkUser(object):
         args = {"group_id": self.my_uid}
 
         upserver = vkrequest.perform(op, args)
+        # TODO: change!!!
         photos = self.__upload_images(upserver, files)
         logger.info("Uploaded wall images")
         ids = photos
@@ -432,7 +446,7 @@ class VkUser(object):
     @SealMode.collect_vk_user_action_stats
     @SealMode.mark_action_load_balancing
     def find_video(self, req):
-        log.info("Looking for requested video")
+        logger.info("Looking for requested video")
         op = self.api.video.search
         args = {"q": req, "adult": 0, "search_own": 0, "count": 1}
         resp = vkrequest.perform(op, args)
@@ -447,7 +461,7 @@ class VkUser(object):
     @SealMode.collect_vk_user_action_stats
     @SealMode.mark_action_load_balancing
     def find_doc(self, req):
-        log.info("Looking for document")
+        logger.info("Looking for document")
         op = self.api.docs.search
         args = {"q": req, "count": 1}
         resp = vkrequest.perform(op, args)
@@ -515,12 +529,13 @@ class VkUser(object):
 
     @SealMode.collect_vk_user_action_stats
     def getRequests(self):
-        logger.info("Getting  friends requests")
+        logger.info("Getting friends requests")
         op = self.api.friends.getRequests
         args = {}
         resp = vkrequest.perform(op, args)
         return resp["items"]
 
+    @SealMode.collect_vk_user_action_stats
     def get_dialogs(self, offset=0, count=200):
         op = self.api.messages.getDialogs
         args = {"offset": offset, "count": count}
@@ -536,8 +551,44 @@ class VkUser(object):
 
         return items
 
-    def join_chat(self):
-        pass
+    @SealMode.collect_vk_user_action_stats
+    def add_chat_user(self, chat_id, user_id):
+        print('VK_API: adding user:{} to chat_id:{}'.format(user_id, chat_id))
 
-    def leave_chat(self):
-        pass
+        # TODO: TMP!
+        return
+
+        op = self.api.messages.addChatUser
+        args = {"chat_id": int(chat_id), "user_id": user_id}
+        return vkrequest.perform(op, args)
+
+    @SealMode.collect_vk_user_action_stats
+    def remove_chat_user(self, chat_id, user_id):
+        print('VK_API: removing user:{} from chat_id:{}'.format(user_id, chat_id))
+
+        # TODO: TMP!
+        return
+
+        op = self.api.messages.removeChatUser
+        args = {"chat_id": int(chat_id), "user_id": user_id}
+        return vkrequest.perform(op, args)
+
+    @SealMode.collect_vk_user_action_stats
+    def get_chat(self, chat_id, chat_ids=None, fields=''):
+        op = self.api.messages.getChat
+        args = {"chat_id": chat_id, "chat_ids": chat_ids, "fields": fields}
+        return vkrequest.perform(op, args)
+
+    @SealMode.collect_vk_user_action_stats
+    def get_chat_users(self, chat_id, chat_ids=None, fields=None):
+
+        op = self.api.messages.getChatUsers
+        args = {"chat_id": int(chat_id),
+                "chat_ids": chat_ids,
+                "fields": fields}
+        resp = vkrequest.perform(op, args)
+
+        print('!!!>!>get_chat_users response: {}'.format(resp))
+
+        # return dict(resp['response'])
+        return resp

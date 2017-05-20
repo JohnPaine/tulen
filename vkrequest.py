@@ -153,6 +153,7 @@ def perform(operation, args):
     process = psutil.Process(os.getpid())
 
     def process_capthca():
+        # TODO: change!!!
         # global capthca solver
         if not capthca:
             raise
@@ -191,6 +192,7 @@ def perform(operation, args):
                 # on prev iteration solved capcha, it is in args
                 if args.get("captcha_key", None):
                     update_minfo(operation._method_name, "capthca_ok", 1)
+                    # TODO: change!!!
                     file.write(info_string(operation._method_name,
                                            "CAPTCHA OK [{}]; balance [{}]".format(args.get("captcha_key", None),
                                                                                   _2captcha_api.get_balance())))
@@ -209,6 +211,7 @@ def perform(operation, args):
                     this_captcha = True
 
                     if res:
+                        # TODO: change!!!
                         update_info(operation._method_name, "captcha", 1)
                         args.update({"captcha_sid": e.captcha_sid, "captcha_key": res})
                     else:

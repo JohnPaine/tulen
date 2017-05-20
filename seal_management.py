@@ -2,37 +2,40 @@
 # -*- coding: utf-8 -*-
 
 import pika
-import os
 from abc import abstractmethod
 from functools import wraps
+from seal_management_utils import *
 
-########################################################################################################################
-# Idea explanation
-########################################################################################################################
-#
-#   We have 2 types of exchanges:
-#       1. Manager to seal
-#       2. Seal to manager
-#   We have routing keys of format:     <command>.<from>.<to>
-#   And we have queues for all message types (signals):     add_friend, join_chat, stop_seal, etc
-#   So when manager wants to send an add-friend signal(command) to seal with id 123456 he has to publish his message
-#       to exchange manager_to_seal with routing key add_friend.manager.123456
-#   On the other hand, a seal that wants to receive an add_friend signal(command) from manager has to:
-#       1. Declare queue with name add_friend
-#       2. Bind it to exchange manager_to_seal and routing key add_friend.manager.123456 or add_friend.*.123456
-#       3. Consume messages from this queue with corresponding callback
-#   In this case, all messages from queue will be delivered to this callback for this seal
-#
-########################################################################################################################
+"""
+SEAL MANAGEMENT
 
+IDEA.
+   We have 2 types of exchanges:
+       1. Manager to seal
+       2. Seal to manager
+   We have routing keys of format:     <command>.<from>.<to>
+   And we have queues for all message types (signals):     add_friend, join_chat, stop_seal, etc
+   So when manager wants to send an add-friend signal(command) to seal with id 123456 he has to publish his message
+       to exchange manager_to_seal with routing key add_friend.manager.123456
+   On the other hand, a seal that wants to receive an add_friend signal(command) from manager has to:
+       1. Declare queue with name add_friend
+       2. Bind it to exchange manager_to_seal and routing key add_friend.manager.123456 or add_friend.*.123456
+       3. Consume messages from this queue with corresponding callback
+   In this case, all messages from queue will be delivered to this callback for this seal
+   
+SCHEME.
+    routing keys:
+    <signal(command)>.manager.12345 - meaning route from manager to seal with id 12345
+    <signal(command)>.12345.manager - meaning route from seal with id 12345 to manager
+    <signal(command)>.12345.2345678 - meaning route from seal with id 12345 to seal with id 2345678
+
+"""
 # queues (signals):
 # manager -> seal signals (commands)
 ADD_FRIEND_CMD = "add_friend"
-JOIN_CHAT_CMD = "join_chat"
-QUIT_CHAT_CMD = "quit_chat"
-REPLACE_IN_CHAT_CMD = "replace_in_chat"
 SOLVE_CAPTCHA_CMD = "solve_captcha_cmd"
 STOP_SEAL_CMD = "stop_seal"
+CONNECT_TO_SEALS_CMD = "connect_to_seals"
 
 # manager -> seal signals (responses on requests)
 SOLVE_CAPTCHA_REQ_RESP = "solve_captcha_request_response"
@@ -47,81 +50,59 @@ SEAL_EXCEPTION_OCCURRED_MSG = "seal_exception"
 # seal -> manager  signals (responses on requests)
 SOLVE_CAPTCHA_CMD_RESP = "solve_captcha_cmd_response"
 
+"""
+CHAT MANAGEMENT
+
+IDEA. 
+
+    manager detects replacing (seal_2, least loaded) and replaceable (seal_1, most loaded) seals
+    manager -> to seal_1: replace yourself in N chats with seal_2
+    seal_1 takes first N dialogs in which seal_2 ain't present yet
+
+    [simplified a bit]
+    foreach dialog in selected_dialogs:
+        result = vk_user.addChatUser(seal_2)
+        if result == ok:
+            vk_user.send_message('seal_1 switched with seal_2 in this chat. Adios!')
+            vk_user.removeChatUser(seal_1)
+        elif result == already_in_chat:
+            chat_data = vk_user.collect_chat_data(dialog.id)
+            emit_signal(seal_2, JOIN_CHAT_BY_DATA...
+
+    seal_2.on_join_chat_by_data(...):
+        # discuss:
+        seal_2 could iterate through all it's chats (from 0 to last_chat_id??) with vk_user.getChat() e.g.
+        searching for property: "left": 1 - it will be set for chats that seal_2 left by himself
+        and also comparing chat data
+
+"""
+
+# CHAT MANAGEMENT COMMANDS
+# seal -> other seal
+JOIN_CHAT_CMD = "join_chat"
+QUIT_CHAT_CMD = "quit_chat"
+# maanger -> seal
+REPLACE_IN_CHAT_CMD = "replace_in_chat"
+
 # exchanges:
 MANAGER_TO_SEAL_EXCHANGE = "manager_to_seal"
 SEAL_TO_MANAGER_EXCHANGE = "seal_to_manager"
-
-# routing keys:
-# <signal(command)>.manager.12345 - meaning route from manager to seal with id 12345
-# <signal(command)>.12345.manager - meaning route from seal with id 12345 to manager
-# <signal(command)>.12345.2345678 - meaning route from seal with id 12345 to seal with id 2345678
+SEAL_TO_SEAL = "seal_to_seal"
 
 AMQP_SERVER = "localhost"
 AMQP_USER = "seal"
 AMQP_PASS = "seal2017"
 AMQP_VHOST = "/"
 
+MANAGER_NAME = 'manager'
+
 SEND_STATS_MSG_format = 'seal_id: {}, action: {}, times: {}, load_balancing: {}, chat_count: {}, args_str: {}'
 SEAL_EXCEPTION_OCCURRED_MSG_format = 'seal_id: {}, critical exception occurred: {}'
 REPLACE_IN_CHAT_CMD_format = 'replacing_seal_id: {}, chat_id: {}, chat_num: {}'
+CONNECT_TO_SEALS_CMD_format = 'seal_ids: {}'
+JOIN_CHAT_CMD_format = 'title: {}, admin_id: {}, replaceable_seal_id: {}, replacing_seal_id: {}'
 
 LOAD_BALANCED_ACTIONS = []
-
-
-class VkUserStatsAction:
-    def __init__(self, action_name, args_str):
-        self.action = action_name
-        self.times = 1
-        self.args = [args_str]
-
-
-# utils:        --------------------------------------------------------------------------------------------------------
-def rem_file(name):
-    try:
-        os.remove(name)
-    except OSError:
-        pass
-
-
-def create_dir(path):
-    if not os.path.exists(path):
-        os.makedirs(path)
-
-
-class SealManagerException(Exception):
-    def __init__(self, value):
-        self.value = value
-
-    def __str__(self):
-        return u"SealManager exception: {}".format(self.value)
-
-
-class IterCounter:
-    def __init__(self, max_count=10, raise_exception=True):
-        self.counter = 0
-        self.max_count = max_count
-        self.raise_exception = raise_exception
-        print('IterCounter, max_count: {}, raise_exception: {}'.format(max_count, raise_exception))
-
-    def count(self):
-        self.counter += 1
-        print('IterCounter: {}'.format(self.counter))
-        if self.raise_exception and self.counter > self.max_count:
-            print("IterCounter loop limit reached - {}".format(self.max_count))
-            raise SealManagerException("IterCounter loop limit reached - {}".format(self.max_count))
-
-    @staticmethod
-    def step_counter(f):
-        def wrapper(*args):
-            iter_counter = args[0]
-            if isinstance(iter_counter, IterCounter):
-                iter_counter.count()
-            return f(*args)
-
-        return wrapper
-
-
-# utils:        --------------------------------------------------------------------------------------------------------
 
 
 # amqp management:      ------------------------------------------------------------------------------------------------
@@ -140,7 +121,10 @@ def setup_amqp_connection_(use_credentials=False):
 def get_exchange_type_(routing_key):
     # routing_key:  <command>.<from>.<to>
     keys = str(routing_key).split('.')
-    return MANAGER_TO_SEAL_EXCHANGE if keys[1] == 'manager' else SEAL_TO_MANAGER_EXCHANGE
+    manager_exchange = 'manager'
+    if manager_exchange in keys:
+        return MANAGER_TO_SEAL_EXCHANGE if keys[1] == manager_exchange else SEAL_TO_MANAGER_EXCHANGE
+    return SEAL_TO_SEAL
 
 
 def declare_exchange_(channel, exchange):
@@ -190,6 +174,9 @@ def publish_message_(channel, routing_key, message, content_type='text/plain', p
     exchange = get_exchange_type_(routing_key)
     declare_exchange_(channel, exchange)
 
+    print('\tperforming basic publish: message:{},\n\texchange:{},\n\tprops:{},\n\trouting_key:{}\n'
+          .format(message, exchange, msg_props, routing_key))
+
     channel.basic_publish(body=message,
                           exchange=exchange,
                           properties=msg_props,
@@ -200,8 +187,8 @@ def publish_message_(channel, routing_key, message, content_type='text/plain', p
               .format(message, routing_key, exchange))
 
 
-def receive_signals_(channel, queue_name, inactivity_timeout=0.01):
-    for reply in channel.consume(queue_name, inactivity_timeout=inactivity_timeout):
+def process_signal_(channel, signal, inactivity_timeout=0.01):
+    for reply in channel.consume(signal, inactivity_timeout=inactivity_timeout):
         if not reply:
             break
         print(reply)
@@ -213,6 +200,13 @@ def receive_signals_(channel, queue_name, inactivity_timeout=0.01):
 
 
 # account manager       ------------------------------------------------------------------------------------------------
+class VkUserStatsAction:
+    def __init__(self, action_name, args_str):
+        self.action = action_name
+        self.times = 1
+        self.args = [args_str]
+
+
 class BreederMode:
     def __init__(self):
         pass
@@ -231,13 +225,14 @@ class SealMode:
 
     @staticmethod
     def check_standalone_mode(f):
-        def wrapper(*args):
+        @wraps(f)
+        def wrapper(*args, **kwargs):
             account_manager = args[0]
             if not hasattr(account_manager, 'mode'):
-                return f(*args)
+                return f(*args, **kwargs)
             if account_manager.mode == SealMode.Standalone:
                 return None
-            return f(*args)
+            return f(*args, **kwargs)
 
         return wrapper
 
@@ -275,8 +270,8 @@ class SealMode:
 
 
 class BaseAccountManager:
-    def __init__(self, slot_map):
-        self.slot_map = slot_map
+    def __init__(self):
+        self.slot_map = {}
         self.listener_connection = setup_amqp_connection_()
         self.listener_channel = self.listener_connection.channel()
         self.publisher_connection = None
@@ -288,40 +283,49 @@ class BaseAccountManager:
     def __exit__(self, exc_type, exc_val, exc_tb):
         print('BaseAccountManager.__exit__')
 
-    @abstractmethod
-    def make_signal_routing_key(self, signal, manager='manager', seal_id=None):
-        pass
-
-    @abstractmethod
-    def make_slot_routing_key(self, queue_name, manager='manager', seal_id=None):
-        pass
-
-    @abstractmethod
-    def make_message(self, signal, manager='manager', seal_id=None):
-        pass
+    @staticmethod
+    def make_routing_key(signal, sender_id, receiver_id):
+        return '{}.{}.{}'.format(signal, sender_id, receiver_id)
 
     @SealMode.check_standalone_mode
-    def publish_message(self, signal, message='', seal_id=None, manager='manager'):
-        print('BaseAccountManager publishing message for signal: {}, message: {}'.format(signal, message))
+    def publish_message(self, signal, sender_id, receiver_id, message=''):
+        print('BaseAccountManager publishing message for signal: {}, message: {}, sender_id:{}, receiver_id:{}'
+              .format(signal, message, str(sender_id), str(receiver_id)))
+
         with setup_amqp_connection_() as self.publisher_connection:
-            routing_key = self.make_signal_routing_key(signal, manager, seal_id)
+            routing_key = BaseAccountManager.make_routing_key(signal, sender_id, receiver_id)
             if not message:
-                message = self.make_message(signal, manager, seal_id)
+                message = 'signal:{} from: {} to: {}'.format(signal, sender_id, receiver_id)
+            print('\tpublishing message: {} for routing_key: {}'.format(message, routing_key))
             publish_message_(self.publisher_connection.channel(), routing_key, message)
 
     @SealMode.check_standalone_mode
-    def bind_slots(self, seal_id=None, manager='manager'):
-        print('BaseAccountManager - connecting slots...')
-        slot_map = {}
-        for queue_name, slot in self.slot_map.items():
-            routing_key = self.make_slot_routing_key(queue_name, manager, seal_id)
-            slot_map[routing_key] = slot
-        bind_slots_(self.listener_channel, slot_map)
+    def bind_slots(self, sender_id, receiver_id, slot_map):
+        print('BaseAccountManager - connecting slots for sender_id:{},\n\treceiver_id:{},\n\tslot_map:{}'
+              .format(sender_id, receiver_id, slot_map))
+        slots = {}
+        added_slots = {}
+
+        if sender_id == receiver_id:
+            print('Binding slots error: receiver and sender cannot coincide!!!')
+            return
+
+        for signal, slot in slot_map.items():
+            routing_key = BaseAccountManager.make_routing_key(signal, sender_id, receiver_id)
+            slots[routing_key] = slot
+            if not signal in slot_map:
+                added_slots[signal] = slot
+
+        bind_slots_(self.listener_channel, slots)
+        self.slot_map = {**slot_map, **added_slots}
 
     @SealMode.check_standalone_mode
-    def receive_signals(self, loop_limit=10):
+    def receive_signals(self, loop_limit=10, slot_map=None):
+        if not slot_map:
+            slot_map = self.slot_map
+
         for _ in range(loop_limit):
-            for queue_name in self.slot_map:
-                receive_signals_(self.listener_channel, queue_name)
+            for signal in slot_map:
+                process_signal_(self.listener_channel, signal)
 
 # account manager       ------------------------------------------------------------------------------------------------

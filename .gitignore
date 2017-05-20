@@ -18,3 +18,5 @@ access_seal3\.yaml\.out
 *.log
 
 api_history
+
+chat_management\.txt
