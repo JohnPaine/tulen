@@ -10,18 +10,15 @@ from seal_management_utils import *
 SEAL MANAGEMENT
 
 IDEA.
-   We have 2 types of exchanges:
-       1. Manager to seal
-       2. Seal to manager
-   We have routing keys of format:     <command>.<from>.<to>
-   And we have queues for all message types (signals):     add_friend, join_chat, stop_seal, etc
-   So when manager wants to send an add-friend signal(command) to seal with id 123456 he has to publish his message
-       to exchange manager_to_seal with routing key add_friend.manager.123456
-   On the other hand, a seal that wants to receive an add_friend signal(command) from manager has to:
-       1. Declare queue with name add_friend
-       2. Bind it to exchange manager_to_seal and routing key add_friend.manager.123456 or add_friend.*.123456
-       3. Consume messages from this queue with corresponding callback
-   In this case, all messages from queue will be delivered to this callback for this seal
+    For management we got:
+    1. Queue name (as post box for each message receiver, e.g manager, <seal_id>, all_seals, etc)
+    2. Exchange name, which is chosen automatically depending on sender-receiver: 
+        a. manager_to_seals
+        b. seals_to_manager
+        c. seal_to_seal
+    3. Routing key of format: <command>.<sender_id>.<receiver_id>
+    Routing keys describe the queue to which message would be sent from exchange
+    Each queue (post box) is binned to 1 slot that is used for message redirecting by command type
    
 SCHEME.
     routing keys:
@@ -121,9 +118,8 @@ def setup_amqp_connection_(use_credentials=False):
 def get_exchange_type_(routing_key):
     # routing_key:  <command>.<from>.<to>
     keys = str(routing_key).split('.')
-    manager_exchange = 'manager'
-    if manager_exchange in keys:
-        return MANAGER_TO_SEAL_EXCHANGE if keys[1] == manager_exchange else SEAL_TO_MANAGER_EXCHANGE
+    if MANAGER_NAME in keys:
+        return MANAGER_TO_SEAL_EXCHANGE if keys[1] == MANAGER_NAME else SEAL_TO_MANAGER_EXCHANGE
     return SEAL_TO_SEAL
 
 
@@ -135,41 +131,47 @@ def declare_exchange_(channel, exchange):
                              auto_delete=False)
 
 
-def bind_queue_(channel, queue_name, routing_key):
-    channel.queue_declare(queue=queue_name, auto_delete=False, durable=True, exclusive=False)
+def bind_queue_(channel, queue_name, routing_key, exchange):
+    channel.queue_declare(queue=queue_name, auto_delete=True, durable=True, exclusive=True)
 
     channel.queue_bind(queue=queue_name,
-                       exchange=get_exchange_type_(routing_key),
+                       exchange=exchange,
                        routing_key=routing_key)
 
 
-def bind_slot_(channel, routing_key, slot):
-    print('binding slot: {} to routing_key: {}'.format(slot, routing_key))
-    # routing_key:  <command>.<from>.<to>
-    keys = str(routing_key).split('.')
-    exchange = get_exchange_type_(routing_key)
+def bind_slot_(channel, receiver_id, routing_keys, slot, exchange=None):
+    print('binding queue: {} to exchange: {} by routing_keys: {} for slot: {}'
+          .format(receiver_id, exchange, routing_keys, slot))
 
-    declare_exchange_(channel, exchange)
+    channel.queue_declare(queue=str(receiver_id), auto_delete=False, durable=True, exclusive=False)
 
-    bind_queue_(channel, keys[0], routing_key)
+    for routing_key in routing_keys:
+        # routing_key:  <command>.<sender_id>.<receiver_id>
+
+        if not exchange:
+            exchange = get_exchange_type_(routing_key)
+        declare_exchange_(channel, exchange)
+
+        print('\tbinding queue: {} to exchange: {} by routing_key: {} ---> DONE!!!'
+              .format(receiver_id, exchange, routing_key))
+
+        channel.queue_bind(queue=str(receiver_id),
+                           exchange=exchange,
+                           routing_key=routing_key)
 
     channel.basic_consume(slot,
-                          queue=keys[0],
+                          queue=str(receiver_id),
                           no_ack=False)
 
-    print('binding slot: {} to routing_key: {} ---> DONE!!!'.format(slot, routing_key))
+    print('binding queue: {} to exchange: {} by routing_keys: {} for slot: {} ---> DONE!'
+          .format(receiver_id, exchange, routing_keys, slot))
 
 
-def bind_slots_(channel, slot_map):
-    for routing_key, slot in slot_map.items():
-        bind_slot_(channel, routing_key, slot)
-
-
-def publish_message_(channel, routing_key, message, content_type='text/plain', print_log=False):
+def publish_message_(channel, routing_key, message, content_type='text/plain'):
     msg_props = pika.BasicProperties()
     msg_props.content_type = content_type
     msg_props.durable = True
-    # msg_props.delivery_mode = 2     # make message persistent
+    msg_props.delivery_mode = 2  # make message persistent
 
     exchange = get_exchange_type_(routing_key)
     declare_exchange_(channel, exchange)
@@ -182,18 +184,47 @@ def publish_message_(channel, routing_key, message, content_type='text/plain', p
                           properties=msg_props,
                           routing_key=routing_key)
 
-    if print_log:
-        print("Sent message {} tagged with routing key '{}' to exchange {}."
-              .format(message, routing_key, exchange))
 
-
-def process_signal_(channel, signal, inactivity_timeout=0.01):
-    for reply in channel.consume(signal, inactivity_timeout=inactivity_timeout):
+def consume_queue_messages_(channel, queue, inactivity_timeout=0.01):
+    for reply in channel.consume(str(queue), inactivity_timeout=inactivity_timeout):
         if not reply:
             break
         print(reply)
 
     channel.cancel()
+
+
+def check_routing(signal=None):
+    def decor(f):
+        @wraps(f)
+        def wrapper(*args, **kwargs):
+            g = f.__globals__
+            receiver_id = g.get('current_receiver_id', None)
+            if not receiver_id:
+                return f(*args, **kwargs)
+
+            print('check_routing for receiver_id: {}, signal: {}'.format(receiver_id, signal))
+
+            method = args[1]
+            print('checking routing_key: {} for receiver_id: {} and signal: {}'
+                  .format(method.routing_key, receiver_id, signal))
+            routing_keys = method.routing_key.split('.')
+            if signal:
+                assert str(routing_keys[0]) == str(signal), \
+                    "expected signal: {} doesn't coincide with routed signal: {}" \
+                        .format(signal, routing_keys[0])
+            assert str(routing_keys[2]) == str(receiver_id), \
+                "expected receiver_id: {} doesn't coincide with routing_key receiver_id: {}" \
+                    .format(receiver_id, routing_keys[2])
+            assert str(routing_keys[1]) != str(receiver_id), \
+                "sender_id: {} cannot coincide with receiver_id: {} !!!" \
+                    .format(routing_keys[1], receiver_id)
+
+            return f(*args, **kwargs)
+
+        return wrapper
+
+    return decor
 
 
 # amqp management:      ------------------------------------------------------------------------------------------------
@@ -237,7 +268,7 @@ class SealMode:
         return wrapper
 
     @staticmethod
-    def collect_vk_user_action_stats(f, collect_args=False):
+    def collect_vk_user_action_stats(f):
         @wraps(f)
         def wrapper(*args, **kwargs):
             vk_user = args[0]
@@ -246,12 +277,13 @@ class SealMode:
             action_name = f.__name__
             print('collect_vk_user_action_stats for method: {}'.format(action_name))
 
-            args_str = str(locals()) if collect_args else ''
+            # TODO: do we need args???
+            # args_str = str(locals()) if collect_args else ''
             if action_name not in vk_user.action_stats:
-                vk_user.action_stats[action_name] = VkUserStatsAction(action_name, args_str)
+                vk_user.action_stats[action_name] = VkUserStatsAction(action_name, '')
             else:
                 vk_user.action_stats[action_name].times += 1
-                vk_user.action_stats[action_name].args.append(args_str)
+                vk_user.action_stats[action_name].args.append('')
             return f(*args, **kwargs)
 
         return wrapper
@@ -270,11 +302,11 @@ class SealMode:
 
 
 class BaseAccountManager:
-    def __init__(self):
-        self.slot_map = {}
+    def __init__(self, receiver_id):
         self.listener_connection = setup_amqp_connection_()
         self.listener_channel = self.listener_connection.channel()
         self.publisher_connection = None
+        self.receiver_id = str(receiver_id)
 
     def __enter__(self):
         print('BaseAccountManager.__enter__')
@@ -288,44 +320,28 @@ class BaseAccountManager:
         return '{}.{}.{}'.format(signal, sender_id, receiver_id)
 
     @SealMode.check_standalone_mode
-    def publish_message(self, signal, sender_id, receiver_id, message=''):
-        print('BaseAccountManager publishing message for signal: {}, message: {}, sender_id:{}, receiver_id:{}'
-              .format(signal, message, str(sender_id), str(receiver_id)))
+    def publish_message(self, signal, receiver_id, message=''):
+        print('BaseAccountManager publishing message: {}, for signal: {}, sender_id:{}, receiver_id:{}'
+              .format(message, signal, str(self.receiver_id), str(receiver_id)))
 
         with setup_amqp_connection_() as self.publisher_connection:
-            routing_key = BaseAccountManager.make_routing_key(signal, sender_id, receiver_id)
+            routing_key = BaseAccountManager.make_routing_key(signal, self.receiver_id, receiver_id)
             if not message:
-                message = 'signal:{} from: {} to: {}'.format(signal, sender_id, receiver_id)
+                message = 'signal: {} from: {} to: {}'.format(signal, self.receiver_id, receiver_id)
             print('\tpublishing message: {} for routing_key: {}'.format(message, routing_key))
             publish_message_(self.publisher_connection.channel(), routing_key, message)
 
     @SealMode.check_standalone_mode
-    def bind_slots(self, sender_id, receiver_id, slot_map):
-        print('BaseAccountManager - connecting slots for sender_id:{},\n\treceiver_id:{},\n\tslot_map:{}'
-              .format(sender_id, receiver_id, slot_map))
-        slots = {}
-        added_slots = {}
+    def bind_slot(self, sender_id, signal_list, slot, exchange=None):
+        routing_keys = []
+        for signal in signal_list:
+            routing_keys.append(BaseAccountManager.make_routing_key(signal, sender_id, self.receiver_id))
 
-        if sender_id == receiver_id:
-            print('Binding slots error: receiver and sender cannot coincide!!!')
-            return
-
-        for signal, slot in slot_map.items():
-            routing_key = BaseAccountManager.make_routing_key(signal, sender_id, receiver_id)
-            slots[routing_key] = slot
-            if not signal in slot_map:
-                added_slots[signal] = slot
-
-        bind_slots_(self.listener_channel, slots)
-        self.slot_map = {**slot_map, **added_slots}
+        bind_slot_(self.listener_channel, self.receiver_id, routing_keys, slot, exchange)
 
     @SealMode.check_standalone_mode
-    def receive_signals(self, loop_limit=10, slot_map=None):
-        if not slot_map:
-            slot_map = self.slot_map
-
+    def consume_messages(self, loop_limit=10):
         for _ in range(loop_limit):
-            for signal in slot_map:
-                process_signal_(self.listener_channel, signal)
+            consume_queue_messages_(self.listener_channel, self.receiver_id)
 
 # account manager       ------------------------------------------------------------------------------------------------

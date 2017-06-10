@@ -1,9 +1,11 @@
 import subprocess
-import yaml
-from seal_management import *
-from functools import reduce
 from collections import defaultdict, namedtuple
+from functools import reduce
 from operator import itemgetter
+
+import yaml
+
+from seal_management import *
 
 
 class SealBalancingConditions:
@@ -14,7 +16,9 @@ class SealBalancingConditions:
     BY_CHAT_COUNT = (2, 'chat_count')
 
 
-ChatSealBalancingResponse = namedtuple('ChatSealBalancingResponse', ['cmd_message', 'balanced_seal_id'])
+ChatSealBalancingResponse = namedtuple('ChatSealBalancingResponse', ['cmd_message',
+                                                                     'being_replaced_seal_id',
+                                                                     'replacing_seal_id'])
 BalancingListItem = namedtuple('BalancingListItem', ['seal_id',
                                                      SealBalancingConditions.BY_ACTION_COUNT[1],
                                                      SealBalancingConditions.BY_CHAT_COUNT[1]])
@@ -34,21 +38,22 @@ class ChatSealBalancing:
             return None, None
 
         # TODO: change??
-        replaceable = sorted_balancing_list[0]
+        being_replaced = sorted_balancing_list[0]
         replacing = sorted_balancing_list[-1]
-        print('\tBALANCING seals, replaceable: {}, replacing: {}'.format(replaceable, replacing))
-        return replaceable, replacing
+        print('\tBALANCING seals, being_replaced: {}, replacing: {}'.format(being_replaced, replacing))
+        return being_replaced, replacing
 
     @staticmethod
     def generate_response(sorted_balancing_list, chat_id=-1, chat_count=1):
-        replaceable, replacing = ChatSealBalancing.choose_seals_for_balancing(sorted_balancing_list)
-        if not replaceable or not replacing or replacing == replaceable:
+        being_replaced, replacing = ChatSealBalancing.choose_seals_for_balancing(sorted_balancing_list)
+        if not being_replaced or not replacing or replacing == being_replaced:
             print('\tunable to choose seals for chat balancing...')
             return None
         return ChatSealBalancingResponse(cmd_message=REPLACE_IN_CHAT_CMD_format.format(replacing.seal_id,
                                                                                        chat_id,
                                                                                        chat_count),
-                                         balanced_seal_id=replaceable.seal_id)
+                                         being_replaced_seal_id=being_replaced.seal_id,
+                                         replacing_seal_id=replacing.seal_id)
 
     @staticmethod
     def form_balancing_list(seal_configs: dict) -> list:
@@ -98,8 +103,8 @@ class SealConfig:
 
 
 class SealBreeder(BaseAccountManager):
-    def __init__(self):
-        super().__init__()
+    def __init__(self, receiver_id=MANAGER_NAME):
+        super().__init__(receiver_id)
         self.seals = {}
         self.SEALS_PROCESSES = []
         self.mode = BreederMode.NoMode
@@ -111,21 +116,19 @@ class SealBreeder(BaseAccountManager):
     def __exit__(self, exc_type, exc_val, exc_tb):
         print('SealBreeder.__exit__')
 
-    # BaseAccountManager interface      ================================================================================
-    def publish_message(self, signal, receiver_id, message='', **kwargs):
-        print(
-            'Seal breeder publishing message: {} for signal: {}, receiver_id: {}'.format(message, signal, receiver_id))
-        super().publish_message(signal, MANAGER_NAME, receiver_id, message)
-
-    def bind_slots(self, slot_map, **kwargs):
-        print('binding slots for seal_breeder...')
-        for sender_id in self.seals:
-            super().bind_slots(sender_id, MANAGER_NAME, slot_map)
-
-    # BaseAccountManager interface      ================================================================================
+    def send_connect_to_seals_cmd(self, seal_id):
+        seal_ids = ",".join((str(_seal_id) for _seal_id in self.seals.keys() if _seal_id != seal_id))
+        if not seal_ids:
+            return
+        self.publish_message(signal=CONNECT_TO_SEALS_CMD,
+                             receiver_id=seal_id,
+                             message=CONNECT_TO_SEALS_CMD_format.format(seal_ids))
 
     def register_seal(self, seal_id, seal_process, config_file_name, start_counter):
         self.seals[seal_id] = SealConfig(seal_id, seal_process, config_file_name, start_counter)
+
+        if start_counter > 1:
+            self.send_connect_to_seals_cmd(seal_id)
 
     def finish_seals(self):
         try:
@@ -169,7 +172,9 @@ class SealBreeder(BaseAccountManager):
         result = ChatSealBalancing.balance_seals(self.seals, condition)
         if not result:
             return
-        self.publish_message(REPLACE_IN_CHAT_CMD, result.balanced_seal_id, result.cmd_message)
+        print('\t\t\t->being_replaced_seal_id: {} with replacing_seal_id: {}!Message should receive the first one!\n\n'
+              .format(result.being_replaced_seal_id, result.replacing_seal_id))
+        self.publish_message(REPLACE_IN_CHAT_CMD, result.being_replaced_seal_id, result.cmd_message)
 
     @staticmethod
     def get_seal_id(config_file):

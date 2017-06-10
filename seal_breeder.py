@@ -9,15 +9,13 @@ import traceback
 
 
 # slots:        --------------------------------------------------------------------------------------------------------
-def on_solve_captcha_request(channel, method, header, body):
+def on_solve_captcha_request(method, header, body):
     """Accepts solve-captcha request from seal."""
 
     print("on_solve_captcha_request, body - {}, header - {}, method - {}".format(body, header, method))
 
-    channel.basic_ack(delivery_tag=method.delivery_tag)
 
-
-def on_send_stats_message(channel, method, header, body):
+def on_send_stats_message(method, header, body):
     """Accepts send-stats message from seal."""
 
     print("on_send_stats_message, body - {}, header - {}, method - {}".format(body, header, method))
@@ -51,34 +49,49 @@ def on_send_stats_message(channel, method, header, body):
         if load_balancing:
             seal.lb_action_stats[action_name] += times
 
-    channel.basic_ack(delivery_tag=method.delivery_tag)
 
-
-def on_seal_exception_message(channel, method, header, body):
+def on_seal_exception_message(method, header, body):
     """Accepts seal-exception message from seal."""
 
     print("on_seal_exception_message, body: {},\n\theader: {},\n\tmethod: {}".format(body, header, method))
 
-    channel.basic_ack(delivery_tag=method.delivery_tag)
-
 
 # exchange(signal) - slot (from seal to manager)
-MANAGER_SIGNAL_SLOT_MAP = {SOLVE_CAPTCHA_REQ: on_solve_captcha_request,
-                           SEND_STATS_MSG: on_send_stats_message,
-                           SEAL_EXCEPTION_OCCURRED_MSG: on_seal_exception_message}
+SEALS_TO_MANAGER_SLOT_MAP = {SOLVE_CAPTCHA_REQ: on_solve_captcha_request,
+                             SEND_STATS_MSG: on_send_stats_message,
+                             SEAL_EXCEPTION_OCCURRED_MSG: on_seal_exception_message}
+
+
+@check_routing()
+def seal_breeder_main_slot(channel, method, header, body):
+    """Accepts ALL the messages from seals."""
+
+    # print("seal_breeder_main_slot, body: {},\n\theader: {},\n\tmethod: {}".format(body, header, method))
+    print("seal_breeder_main_slot, routing_key: {}\n".format(method.routing_key))
+
+    signal = method.routing_key.split('.')[0]
+
+    if signal in SEALS_TO_MANAGER_SLOT_MAP:
+        SEALS_TO_MANAGER_SLOT_MAP[signal](method, header, body)
+    else:
+        print('\ndispatch_slot error: no signal: {} in slot_dict: {}'.format(signal, SEALS_TO_MANAGER_SLOT_MAP))
+
+    channel.basic_ack(delivery_tag=method.delivery_tag)
 
 # slots:        --------------------------------------------------------------------------------------------------------
 
 
 seal_breeder = SealBreeder()
+# global receiver_id for amqp management
+current_receiver_id = seal_breeder.receiver_id
 
 
 @IterCounter.step_counter
 def process_step(iter_counter):
     time.sleep(1.0)
-    seal_breeder.receive_signals()
+    seal_breeder.consume_messages()
 
-    if iter_counter.counter % 20 == 0:
+    if iter_counter.counter % 5 == 0:
         seal_breeder.check_alive()
         seal_breeder.balance_seals_for_chats()
 
@@ -88,24 +101,15 @@ def process(config, mode):
     iter_counter = IterCounter(max_count=200, raise_exception=False)
 
     seal_breeder.start_seals(config_files, mode)
-    seal_breeder.bind_slots(MANAGER_SIGNAL_SLOT_MAP)
+    seal_breeder.bind_slot('*', list(SEALS_TO_MANAGER_SLOT_MAP.keys()), seal_breeder_main_slot)
 
     time.sleep(2)
     for seal_id in seal_breeder.seals:
-        seal_ids = ",".join((str(_seal_id) for _seal_id in seal_breeder.seals.keys()))
-        seal_breeder.publish_message(signal=CONNECT_TO_SEALS_CMD,
-                                     receiver_id=seal_id,
-                                     message=CONNECT_TO_SEALS_CMD_format.format(seal_ids))
+        seal_breeder.send_connect_to_seals_cmd(seal_id)
 
     while True:
         try:
             process_step(iter_counter)
-
-            # TODO:
-            # 1. Seal running checks - DONE
-            # 2. Statistics - DONE
-            # 3. Logging errors/exception in seal breeder - DONE
-            # 4. join/leave chat
 
         except SealManagerException as e:
             print(e)

@@ -7,6 +7,7 @@ import logging
 import random
 import threading
 import multiprocessing
+import traceback
 
 import vk
 import vkrequest
@@ -552,11 +553,47 @@ class VkUser(object):
         return items
 
     @SealMode.collect_vk_user_action_stats
+    def get_chats_data(self, chats_per_iter=100, start_from=1, chats_data=None) -> dict:
+        """Return data for all user chats (dialogs with user_count > 2).
+                
+        :param chats_per_iter: each VkApi request brings chats_per_iter chats.
+            If chat doesn't exist, admin_id will be 0.
+            Default: 100
+        :param start_from: chat ids obtained starting from this counter.
+            Default: 1
+        :param chats_data: chats_data dict
+            Default: None        
+        :return: chats_data dict of format: {user_chat_id: dict(chat_data)}
+        """
+        if not chats_data:
+            chats_data = dict()
+
+        try:
+            chat_ids = list(str(i) for i in range(start_from, start_from + chats_per_iter))
+            iter_chats_data = self.get_chat(chat_id='', chat_ids=chat_ids)
+
+            for chat_data in iter_chats_data:
+                print('\tget_chats_data, checking chat_data: {}'.format(chat_data))
+                if chat_data['admin_id'] == 0:
+                    print('\t\tstopping chat_data checks on empty admin_id.')
+                    return chats_data
+
+                chats_data[int(chat_data['id'])] = chat_data
+            start_from += chats_per_iter
+
+        except Exception as e:
+            print('on_join_chat_cmd, exception occurred: {}'.format(e))
+            traceback.print_exc()
+            return chats_data
+
+        return self.get_chats_data(chats_per_iter, start_from, chats_data)
+
+    @SealMode.collect_vk_user_action_stats
     def add_chat_user(self, chat_id, user_id):
         print('VK_API: adding user:{} to chat_id:{}'.format(user_id, chat_id))
 
         # TODO: TMP!
-        return
+        return None
 
         op = self.api.messages.addChatUser
         args = {"chat_id": int(chat_id), "user_id": user_id}
@@ -567,7 +604,7 @@ class VkUser(object):
         print('VK_API: removing user:{} from chat_id:{}'.format(user_id, chat_id))
 
         # TODO: TMP!
-        return
+        return None
 
         op = self.api.messages.removeChatUser
         args = {"chat_id": int(chat_id), "user_id": user_id}
@@ -588,7 +625,6 @@ class VkUser(object):
                 "fields": fields}
         resp = vkrequest.perform(op, args)
 
-        print('!!!>!>get_chat_users response: {}'.format(resp))
+        print('get_chat_users response: {}'.format(resp))
 
-        # return dict(resp['response'])
         return resp
