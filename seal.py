@@ -1,16 +1,19 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
-import yaml
-import time
 import argparse
-from seal_management import *
 import logging.config
-from vkuser import VkUser
 import random
-from parse import compile as parse_compile
+import time
 import traceback
 import uuid
+
+import yaml
+from parse import compile as parse_compile
+
+from seal_management import *
+from seal_management_utils import *
+from vkuser import VkUser
 
 # logging:      --------------------------------------------------------------------------------------------------------
 LOG_SETTINGS = {
@@ -50,6 +53,7 @@ class SealAccountManager(BaseAccountManager):
         super().__init__(seal_id)
         self.mode = mode
         self.vk_user = None
+        self.other_seals_ids = []
 
     def __enter__(self):
         print('SealAccountManager.__enter__')
@@ -95,23 +99,24 @@ def on_replace_in_chat_cmd(method, header, body):
     chat_id = int(parsed[1])
     chat_num = int(parsed[2])
 
-    def replace_in_chat(_chat_id, _replacing_seal_id):
+    def replace_in_chat(_chat_id):
         nonlocal chat_num
 
-        print('\t\tseal, replace_in_chat, chat_id:{}. replacing_seal_id:{}'.format(_chat_id, _replacing_seal_id))
+        print('seal, replace_in_chat, chat_id:{}. replacing_seal_id:{}'.format(_chat_id, replacing_seal_id))
 
         users = seal.vk_user.get_chat_users(_chat_id)
+        print('\tseal.vk_user.get_chat_users, users: {}'.format(users))
 
-        if int(_replacing_seal_id) in users:
-            print('CAN\'T replace seal_id:{} with replacing_seal_id:{} in chat_id:{} - he\'s already in chat!'
-                  .format(seal.receiver_id, _replacing_seal_id, _chat_id))
+        if int(replacing_seal_id) in users:
+            print('\tCAN\'T replace seal_id:{} with replacing_seal_id:{} in chat_id:{} - he\'s already in chat!'
+                  .format(seal.receiver_id, replacing_seal_id, _chat_id))
         else:
-            print('trying to replace THIS seal_id:{} with replacing_seal_id:{} in chat_id:{}'
-                  .format(seal.receiver_id, _replacing_seal_id, _chat_id))
+            print('\ttrying to replace THIS seal_id:{} with replacing_seal_id:{} in chat_id:{}'
+                  .format(seal.receiver_id, replacing_seal_id, _chat_id))
             try:
                 # TODO: send message to chat about this switch...
 
-                seal.vk_user.add_chat_user(int(_chat_id), int(_replacing_seal_id))
+                seal.vk_user.add_chat_user(int(_chat_id), int(replacing_seal_id))
 
                 chat_data = seal.vk_user.get_chat(_chat_id)
                 print('\t\treplace_in_chat, chat_data: {}'.format(chat_data))
@@ -120,23 +125,22 @@ def on_replace_in_chat_cmd(method, header, body):
                 print('\t\treplace_in_chat, encoded_chat_title: {}'.format(encoded_chat_title))
 
                 seal.publish_message_to_seal(JOIN_CHAT_CMD,
-                                             _replacing_seal_id,
+                                             replacing_seal_id,
                                              JOIN_CHAT_CMD_format.format(encoded_chat_title,
                                                                          chat_data['admin_id'],
                                                                          seal.receiver_id,
-                                                                         _replacing_seal_id))
+                                                                         replacing_seal_id))
                 seal.vk_user.remove_chat_user(int(_chat_id), seal.receiver_id)
                 chat_num -= 1
 
             except Exception as e:
-                print('Exception occurred in replacing THIS seal_id: {} with seal: {} in chat_id: {}'
-                      .format(seal.receiver_id, _replacing_seal_id, _chat_id))
+                print('Exception: {},\n\t...occurred in replacing THIS seal_id: {} with seal: {} in chat_id: {}'
+                      .format(e, seal.receiver_id, replacing_seal_id, _chat_id))
 
     if chat_id > 0:
-        replace_in_chat(chat_id, replacing_seal_id)
+        replace_in_chat(chat_id)
     else:
         dialog_list = seal.vk_user.get_dialogs()
-        print('\tdialog list length: {}'.format(len(dialog_list)))
 
         for dialog in dialog_list:
             if chat_num <= 0:
@@ -147,9 +151,8 @@ def on_replace_in_chat_cmd(method, header, body):
                 continue
 
             current_chat_id = message['chat_id']
-            print('\t\t\tCHAT_ID: {}'.format(current_chat_id))
 
-            replace_in_chat(current_chat_id, replacing_seal_id)
+            replace_in_chat(current_chat_id)
 
     # print('\tdialog_list: {}'.format(json.dumps(dialog_list, indent=4)))
 
@@ -177,6 +180,7 @@ def on_connect_to_seals_cmd(method, header, body):
 
     seal_ids = parsed[0].split(',')
     print('\t\t\tseal_ids:{}'.format(seal_ids))
+    seal.other_seals_ids = seal_ids
 
     for _seal_id in seal_ids:
         if int(_seal_id) == int(seal.receiver_id):
@@ -213,7 +217,7 @@ def on_join_chat_cmd(method, header, body):
     for chat_data in seal.vk_user.get_chats_data().values():
         if chat_title == chat_data['title'] and admin_id == chat_data['admin_id']:
             if 'left' in chat_data and int(chat_data['left']) == 1:
-                seal.vk_user.add_chat_user(chat_data['id'], seal.receiver_id)
+                seal.vk_user.add_chat_user(int(chat_data['id']), int(seal.receiver_id))
                 print('Seal: {} returns to chat_id: {}'
                       .format(seal.receiver_id, chat_data['id']))
             else:

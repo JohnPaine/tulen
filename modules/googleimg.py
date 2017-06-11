@@ -3,17 +3,14 @@
 
 # import urlparse
 
-import requests
-import time
-import urllib as urlparse
-import sys
-import random
-from bs4 import BeautifulSoup
-import requests
-import re
-import tempfile
-import os
 import logging
+import random
+import tempfile
+import urllib.parse as url_parse
+import urllib.request as url_request
+
+import requests
+from bs4 import BeautifulSoup
 
 logger = logging.getLogger("tulen.googleimg")
 YANDEX_URL = "https://yandex.ru/images/search?{}"
@@ -23,11 +20,11 @@ headers = {
     'Accept': '*/*'}
 
 
-class AppURLopener(urlparse.request.FancyURLopener):
+class AppURLopener(url_request.FancyURLopener):
     version = headers["User-Agent"]
 
 
-urlparse._urlopener = AppURLopener()
+url_request._urlopener = AppURLopener()
 
 session = requests.Session()
 session.headers.update(headers)
@@ -66,7 +63,7 @@ def encoded_dict(in_dict):
 
 
 def make_soup(query):
-    query = urlparse.urlencode(encoded_dict({"text": query}))
+    query = url_parse.urlencode(encoded_dict({"text": query}))
     page = get_html(YANDEX_URL.format(query))
     return BeautifulSoup(page, "html.parser")
 
@@ -74,10 +71,11 @@ def make_soup(query):
 def download_image(url, filename):
     try:
         logger.info("Downloading [{}] to {}".format(url, filename))
-        urlparse.urlretrieve(url, filename)
+        print("Downloading [{}] to {}".format(url, filename))
+        url_request.urlretrieve(url, filename)
         return True
-    except:
-        logger.exception("Download image error")
+    except Exception as e:
+        logger.exception("Download image error, e: {}".format(e))
         return False
 
 
@@ -96,8 +94,8 @@ def get_images_urls(soup):
     images_urls = []
     for img in a:
         h = img.get("href")
-        parsed = urlparse.urlparse(h)
-        image = urlparse.parse_qs(parsed.query)['img_url'][0]
+        parsed = url_parse.urlparse(h)
+        image = url_parse.parse_qs(parsed.query)['img_url'][0]
         images_urls.append(image)
 
     return images_urls
@@ -136,8 +134,8 @@ class Processor:
 
         url = "https://yandex.ru/checkcaptcha?"
         getVars = {'key': self.last_key, "rep": req, "retpath": self.last_retpath}
-        logger.info("Posting yandex captha:", url + urlparse.urlencode(encoded_dict(getVars)))
-        get_html(url + urlparse.urlencode(encoded_dict(getVars)))
+        logger.info("Posting yandex captcha:", url + url_parse.urlencode(encoded_dict(getVars)))
+        get_html(url + url_parse.urlencode(encoded_dict(getVars)))
 
     def process_message(self, message, chatid, userid):
         global session
@@ -164,6 +162,7 @@ class Processor:
 
             html = make_soup(req)
             self.req = req
+            img_filename = ""
             if isBanned(html):
                 self.banned = True
 
@@ -181,11 +180,13 @@ class Processor:
                 session.headers.update(headers)
 
                 all_images = get_images_urls(html)
+                print('all_images: {}'.format(all_images))
                 if all_images:
                     random_url = random.choice(all_images)
 
-                    imgfilename = "./files/" + next(get_new_file_name()) + ".jpg"
-                    downloaded = download_image(random_url, imgfilename)
+                    img_filename = "./files/" + next(get_new_file_name()) + ".jpg"
+                    print('img_filename: {}'.format(img_filename))
+                    downloaded = download_image(random_url, img_filename)
 
                 else:
                     downloaded = False
@@ -197,7 +198,7 @@ class Processor:
                 self.user.send_message(text=u"Уупс, не нашлось ничего на \"" + req + "\"", chatid=chatid, userid=userid)
                 return
 
-            msg_attachments = self.user.upload_images_files([imgfilename, ])
+            msg_attachments = self.user.upload_images_files([img_filename, ])
 
             if not msg_attachments:
                 self.user.send_message(text=u"Странные же вы, такую хуйню ищите", chatid=chatid, userid=userid)
@@ -223,7 +224,7 @@ if __name__ == "__main__":
 
 
     def do(r):
-        message = {"body": "{}.jpg".format(r).decode("utf-8"), "chat_id": 0}
+        message = {"body": "{}.jpg".format(r.decode("utf-8")), "chat_id": 0}
         p.process_message(message, 0, 0)
 
 

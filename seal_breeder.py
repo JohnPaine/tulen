@@ -2,10 +2,13 @@
 # -*- coding: utf-8 -*-
 
 import argparse
-from seal_breeder_account_manager import *
 import time
-from parse import compile as parse_compile
 import traceback
+
+from parse import compile as parse_compile
+
+from seal_breeder_account_manager import *
+from seal_management_utils import *
 
 
 # slots:        --------------------------------------------------------------------------------------------------------
@@ -93,6 +96,7 @@ def process_step(iter_counter):
 
     if iter_counter.counter % 5 == 0:
         seal_breeder.check_alive()
+        # TODO: fix addUserToChat???
         seal_breeder.balance_seals_for_chats()
 
 

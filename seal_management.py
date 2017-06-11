@@ -1,10 +1,9 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
-import pika
-from abc import abstractmethod
 from functools import wraps
-from seal_management_utils import *
+
+import pika
 
 """
 SEAL MANAGEMENT
@@ -18,13 +17,13 @@ IDEA.
         c. seal_to_seal
     3. Routing key of format: <command>.<sender_id>.<receiver_id>
     Routing keys describe the queue to which message would be sent from exchange
-    Each queue (post box) is binned to 1 slot that is used for message redirecting by command type
+    Each queue (post box) is binned to 1 slot that is used for message dispatching by command type
    
 SCHEME.
     routing keys:
-    <signal(command)>.manager.12345 - meaning route from manager to seal with id 12345
-    <signal(command)>.12345.manager - meaning route from seal with id 12345 to manager
-    <signal(command)>.12345.2345678 - meaning route from seal with id 12345 to seal with id 2345678
+    add_friend.manager.12345 - an add-friend command from manager to seal with id 12345
+    solve_captcha_request.12345.manager - a solve-captcha request from seal with 12345 to manager
+    join_chat.12345.2345678 - an invitation-to-chat command from one seal (id 12345) to another (id 2345678)
 
 """
 # queues (signals):
@@ -78,7 +77,7 @@ IDEA.
 # seal -> other seal
 JOIN_CHAT_CMD = "join_chat"
 QUIT_CHAT_CMD = "quit_chat"
-# maanger -> seal
+# manager -> seal
 REPLACE_IN_CHAT_CMD = "replace_in_chat"
 
 # exchanges:
@@ -129,14 +128,6 @@ def declare_exchange_(channel, exchange):
                              passive=False,
                              durable=True,
                              auto_delete=False)
-
-
-def bind_queue_(channel, queue_name, routing_key, exchange):
-    channel.queue_declare(queue=queue_name, auto_delete=True, durable=True, exclusive=True)
-
-    channel.queue_bind(queue=queue_name,
-                       exchange=exchange,
-                       routing_key=routing_key)
 
 
 def bind_slot_(channel, receiver_id, routing_keys, slot, exchange=None):
@@ -275,7 +266,7 @@ class SealMode:
             if not vk_user:
                 return f(*args, **kwargs)
             action_name = f.__name__
-            print('collect_vk_user_action_stats for method: {}'.format(action_name))
+            # print('collect_vk_user_action_stats for method: {}'.format(action_name))
 
             # TODO: do we need args???
             # args_str = str(locals()) if collect_args else ''

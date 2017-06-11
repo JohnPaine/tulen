@@ -69,7 +69,7 @@ class Processor:
 
     def unblock(self):
     
-        self.blocked = False;
+        self.blocked = False
         self.uids = set()
         self.mc = 0
 
@@ -77,7 +77,8 @@ class Processor:
         user = self.user.getUser(user_id, "photo_max_orig", name_case="Nom")
         photo_url = user["photo_max_orig"]
         r = requests.get(photo_url)
-        i = Image.open(StringIO(r.content))
+        print('pixelsort_and_post_on_wall, r:{}, r.content: {}'.format(r, r.content))
+        i = Image.open(StringIO(r.content.decode('utf-8')))
         img_file = "./files/friend{}.jpg".format(user_id)
         i.save(img_file)
         pixelsort.glitch_an_image(img_file)

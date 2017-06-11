@@ -12,6 +12,7 @@ import traceback
 import vk
 import vkrequest
 from seal_management import SealMode
+import json
 
 sys.path.append("./modules")
 logger = logging.getLogger('seal')
@@ -378,12 +379,14 @@ class VkUser(object):
             try:
                 # i think we do not need to use rate-limit operation here
                 response = vkrequest.perform_now(op, args)
-                ph = {"photo": response["photo"],
-                      "server": response["server"],
-                      "hash": response["hash"]}
+                resp_json = json.loads(response.content.decode('utf-8'))
+                ph = {"photo": resp_json["photo"],
+                      "server": resp_json["server"],
+                      "hash": resp_json["hash"]}
                 photos.append(ph)
-            except:
+            except Exception as e:
                 logger.exception("Upload images failed")
+                print("Upload images failed, e: {}".format(e))
 
         return photos
 
@@ -407,7 +410,7 @@ class VkUser(object):
                 resp = vkrequest.perform(op, args)
                 attachments.append(
                     "photo" + str(resp[0]["owner_id"]) + "_" + str(resp[0]["id"]))
-            except:
+            except Exception as e:
                 logger.exception("Saving message image failed")
                 return None
 
@@ -592,22 +595,16 @@ class VkUser(object):
     def add_chat_user(self, chat_id, user_id):
         print('VK_API: adding user:{} to chat_id:{}'.format(user_id, chat_id))
 
-        # TODO: TMP!
-        return None
-
         op = self.api.messages.addChatUser
-        args = {"chat_id": int(chat_id), "user_id": user_id}
+        args = {"chat_id": chat_id, "user_id": user_id}
         return vkrequest.perform(op, args)
 
     @SealMode.collect_vk_user_action_stats
     def remove_chat_user(self, chat_id, user_id):
         print('VK_API: removing user:{} from chat_id:{}'.format(user_id, chat_id))
 
-        # TODO: TMP!
-        return None
-
         op = self.api.messages.removeChatUser
-        args = {"chat_id": int(chat_id), "user_id": user_id}
+        args = {"chat_id": chat_id, "user_id": user_id}
         return vkrequest.perform(op, args)
 
     @SealMode.collect_vk_user_action_stats
@@ -620,7 +617,7 @@ class VkUser(object):
     def get_chat_users(self, chat_id, chat_ids=None, fields=None):
 
         op = self.api.messages.getChatUsers
-        args = {"chat_id": int(chat_id),
+        args = {"chat_id": chat_id,
                 "chat_ids": chat_ids,
                 "fields": fields}
         resp = vkrequest.perform(op, args)

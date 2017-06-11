@@ -1,18 +1,17 @@
-import os
-import time
-import urllib
-import tempfile
-import multiprocessing
-import sys, traceback
-from multiprocessing.pool import ThreadPool
-from datetime import date
-from datetime import datetime
-import threading
-import psutil
 import logging
+import multiprocessing
+import os
+import tempfile
+import threading
+import time
+import urllib.request as url_request
+# from urllib3 import request
+from datetime import datetime
 
+import psutil
+from twocaptchaapi import TwoCaptchaApi, Captcha
 from vk.exceptions import VkAPIError
-from twocaptchaapi import TwoCaptchaApi
+
 import utils
 
 logger = logging.getLogger("seal")
@@ -25,17 +24,18 @@ class Captcha2Captcha:
 
     def solve(self, filename):
         with open(filename, 'rb') as captcha_file:
-            captcha = self.api.solve(captcha_file)
-            res = captcha.await_result()
-            self.last_captcha = captcha
+            _captcha = self.api.solve(captcha_file)
+            res = _captcha.await_result()
+            self.last_captcha = _captcha
             return res
 
     def balance(self):
         return self.api.get_balance()
 
-    def report_bad(self, captcha):
-        if self.captcha:
-            self.captcha.report_bad()
+    @staticmethod
+    def report_bad():
+        if captcha:
+            Captcha.report_bad()
 
 
 captcha = None
@@ -115,26 +115,31 @@ mmap = manager.dict({})
 
 
 def update_minfo(method, type, incr):
+    if not hasattr(method, '_method_name'):
+        return
+
+    method_name = method._method_name
     with JSON_LOCK:
-        json = utils.load_json("./files/minfo.json")
-        if not json:
-            json = {"method": {"type": incr}}
+        json_obj = utils.load_json("./files/minfo.json")
+        if not json_obj:
+            json_obj = {"method": {"type": incr}}
         else:
-            mmap = json.get(method, {})
+            mmap = json_obj.get(method_name, {})
             mmap[type] = mmap.get(type, 0) + incr
-            json[method] = mmap
-        open("./files/minfo.json", "wb").write(utils.pretty_dump(json))
+            json_obj[method_name] = mmap
+        to_write = utils.pretty_dump(json_obj)
+        open("./files/minfo.json", "wb").write(to_write)
 
 
 def info_string(method, val):
     process = psutil.Process(os.getpid())
-    return datetime.now().strftime('%H:%M:%S') + "\t" + method + "\t" + str(
-        process.memory_info().rss / 1024.0 / 1024.0) + "\t" + val + "\t" + "\t" + str(threading.active_count()) + "\n"
+    return datetime.now().strftime('%H:%M:%S') + "\t" + str(method) + "\t" + str(
+        process.memory_info().rss / 1024.0 / 1024.0) + "\t" + str(val) + "\t" + "\t" + str(threading.active_count()) + "\n"
 
 
 def perform_now(operation, args):
     ret = operation(**args)
-    update_minfo(operation._method_name, "success", 1)
+    update_minfo(operation, "success", 1)
     return ret
 
 
@@ -155,22 +160,22 @@ def perform(operation, args):
     def process_capthca():
         # TODO: change!!!
         # global capthca solver
-        if not capthca:
-            raise
-        if this_captcha:
-            capthca.report_bad()
+        # if not capthca:
+        #     raise
+        # if this_captcha:
+        Captcha2Captcha.report_bad()
 
         CAPTHCA_FREE.clear()
 
         temp_name = next(tempfile._get_candidate_names())
         temp_name = "./files/{}.jpg".format(temp_name)
-        urllib.urlretrieve(e.captcha_img, temp_name)
+        url_request.urlretrieve(e.captcha_img, temp_name)
 
         try:
-            res = solve_capthca(temp_name)
+            res = captcha.solve(temp_name)
         except:
             res = None
-            logger.exception("Somthing bad in captcha solving")
+            logger.exception("Something bad in captcha solving")
 
         return res
 
@@ -178,7 +183,7 @@ def perform(operation, args):
         while send:
             try:
                 logger.info("{} {}mb {} active threads"
-                            .format(operation._method_name,
+                            .format(operation,
                                     process.memory_info().rss / 1024.0 / 1024.0,
                                     threading.active_count()))
 
@@ -187,17 +192,17 @@ def perform(operation, args):
                     CAPTHCA_FREE.wait()
 
                 ret = operation(**args)
-                update_minfo(operation._method_name, "success", 1)
+                update_minfo(operation, "success", 1)
 
                 # on prev iteration solved capcha, it is in args
                 if args.get("captcha_key", None):
-                    update_minfo(operation._method_name, "capthca_ok", 1)
+                    update_minfo(operation, "capthca_ok", 1)
                     # TODO: change!!!
-                    file.write(info_string(operation._method_name,
+                    file.write(info_string(operation,
                                            "CAPTCHA OK [{}]; balance [{}]".format(args.get("captcha_key", None),
-                                                                                  _2captcha_api.get_balance())))
+                                                                                  TwoCaptchaApi.get_balance())))
                 else:
-                    file.write(info_string(operation._method_name, "OK"))
+                    file.write(info_string(operation, "OK"))
 
                 # inform other threads that they can continue
                 CAPTHCA_FREE.set()
@@ -212,7 +217,7 @@ def perform(operation, args):
 
                     if res:
                         # TODO: change!!!
-                        update_info(operation._method_name, "captcha", 1)
+                        update_minfo(operation, "captcha", 1)
                         args.update({"captcha_sid": e.captcha_sid, "captcha_key": res})
                     else:
                         captcha_fails += 1
@@ -220,12 +225,12 @@ def perform(operation, args):
                 elif e.code == 6:
                     logger.warning("**** To many req for sec, throttling")
                     time.sleep(1)
-                    update_minfo(operation._method_name, "throttle", 1)
-                    file.write(info_string(operation._method_name, "THROTTLE"))
+                    update_minfo(operation, "throttle", 1)
+                    file.write(info_string(operation.method, "THROTTLE"))
 
                 else:
-                    update_minfo(operation._method_name, "error", 1)
-                    file.write(info_string(operation._method_name, str(e)))
+                    update_minfo(operation, "error", 1)
+                    file.write(info_string(operation.method, str(e)))
                     CAPTHCA_FREE.set()
                     raise
 
