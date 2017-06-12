@@ -4,7 +4,7 @@ unique blacklist
 approve
 reply
 #vkwall
-#vkvideo
+vkvideo
 vkdocs
 #help
 googleimg
@@ -15,7 +15,7 @@ googleimg
 #unique sea_battle
 #unique hangman
 #unique blackjack
-#unique wiki
+unique wiki
 unique captcha_balance
 global add_to_friends
 #unique who

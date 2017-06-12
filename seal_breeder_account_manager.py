@@ -41,6 +41,10 @@ class ChatSealBalancing:
         # TODO: change??
         being_replaced = sorted_balancing_list[0]
         replacing = sorted_balancing_list[-1]
+        diff = abs(being_replaced.chat_count - replacing.chat_count)
+        if diff < 3:
+            print('\tchoose_seals_for_balancing, chat_count diff: {} almost equal - replacing abandoned'.format(diff))
+            return None, None
         print('\tBALANCING seals, being_replaced: {}, replacing: {}'.format(being_replaced, replacing))
         return being_replaced, replacing
 

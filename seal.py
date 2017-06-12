@@ -114,9 +114,9 @@ def on_replace_in_chat_cmd(method, header, body):
             print('\ttrying to replace THIS seal_id:{} with replacing_seal_id:{} in chat_id:{}'
                   .format(seal.receiver_id, replacing_seal_id, _chat_id))
             try:
-                # TODO: send message to chat about this switch...
-
                 seal.vk_user.add_chat_user(int(_chat_id), int(replacing_seal_id))
+
+                # TODO: send message to chat about this switch... -
 
                 chat_data = seal.vk_user.get_chat(_chat_id)
                 print('\t\treplace_in_chat, chat_data: {}'.format(chat_data))
@@ -136,6 +136,7 @@ def on_replace_in_chat_cmd(method, header, body):
             except Exception as e:
                 print('Exception: {},\n\t...occurred in replacing THIS seal_id: {} with seal: {} in chat_id: {}'
                       .format(e, seal.receiver_id, replacing_seal_id, _chat_id))
+                chat_num -= 1
 
     if chat_id > 0:
         replace_in_chat(chat_id)
@@ -334,16 +335,29 @@ def process_vk_messages(vk_user):
 def process_step(iter_counter, to_sleep=None):
     global seal
 
-    if to_sleep:
-        time.sleep(to_sleep)
-    seal.consume_messages()
+    try:
+        if to_sleep:
+            time.sleep(to_sleep)
+        seal.consume_messages()
 
-    process_vk_messages(seal.vk_user)
+        if iter_counter.counter % 10 == 0:
+            try:
+                send_action_stats()
+            except Exception as e:
+                msg = 'Something went wrong while sending stats for seal: {}, e: {}'.format(seal.receiver_id, e)
+                logger.exception(msg)
+                traceback.print_exc()
+                seal.publish_message_to_manager(SEAL_EXCEPTION_OCCURRED_MSG,
+                                                SEAL_EXCEPTION_OCCURRED_MSG_format.format(seal.receiver_id, msg))
+        process_vk_messages(seal.vk_user)
 
-    if iter_counter.counter % 10 == 0:
-        send_action_stats()
-
-    print("*** process_step ---> seal's processing messages ...")
+        print("*** process_step ---> seal's processing messages ...")
+    except Exception as e:
+        msg = 'Something went wrong while processing step for seal: {}, e: {}'.format(seal.receiver_id, e)
+        logger.exception(msg)
+        traceback.print_exc()
+        seal.publish_message_to_manager(SEAL_EXCEPTION_OCCURRED_MSG,
+                                        SEAL_EXCEPTION_OCCURRED_MSG_format.format(seal.receiver_id, msg))
 
 
 def try_save_config(config, config_file_name):
@@ -387,7 +401,6 @@ def process(config, config_file_name, run_mode, test_mode, only_for_uid):
                 traceback.print_exc()
                 seal.publish_message_to_manager(SEAL_EXCEPTION_OCCURRED_MSG,
                                                 SEAL_EXCEPTION_OCCURRED_MSG_format.format(seal.receiver_id, e))
-                break
 
     # try_save_config(config, config_file_name)
     print("SealAccountManager process finished...")

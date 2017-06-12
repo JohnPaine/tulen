@@ -4,11 +4,44 @@
 import argparse
 import time
 import traceback
+import logging.config
 
 from parse import compile as parse_compile
 
 from seal_breeder_account_manager import *
 from seal_management_utils import *
+
+
+# logging:      --------------------------------------------------------------------------------------------------------
+LOG_SETTINGS = {
+    'version': 1,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'level': 'INFO',
+            'formatter': 'default',
+            'stream': 'ext://sys.stdout',
+        },
+    },
+    'formatters': {
+        'default': {
+            '()': 'multiline_formatter.formatter.MultilineMessagesFormatter',
+            'format': '[%(levelname)s] %(message)s'
+        },
+    },
+    'loggers': {
+        'seal_breeder': {
+            'level': 'DEBUG',
+            'handlers': ['console', ]
+        },
+    }
+}
+
+logging.config.dictConfig(LOG_SETTINGS)
+logger = logging.getLogger("seal_breeder")
+
+
+# logging:      --------------------------------------------------------------------------------------------------------
 
 
 # slots:        --------------------------------------------------------------------------------------------------------
@@ -91,13 +124,18 @@ current_receiver_id = seal_breeder.receiver_id
 
 @IterCounter.step_counter
 def process_step(iter_counter):
-    time.sleep(1.0)
-    seal_breeder.consume_messages()
+    try:
+        time.sleep(1.0)
+        seal_breeder.consume_messages()
 
-    if iter_counter.counter % 5 == 0:
-        seal_breeder.check_alive()
-        # TODO: fix addUserToChat???
-        seal_breeder.balance_seals_for_chats()
+        if iter_counter.counter % 20 == 0:
+            seal_breeder.check_alive()
+            # TODO: fix addUserToChat???
+            seal_breeder.balance_seals_for_chats()
+    except Exception as e:
+        msg = 'Something went wrong while processing step for seal_breeder, e: {}'.format(e)
+        logger.exception(msg)
+        traceback.print_exc()
 
 
 def process(config, mode):
