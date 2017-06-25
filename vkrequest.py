@@ -165,10 +165,6 @@ def perform(operation, args):
     process = psutil.Process(os.getpid())
 
     def process_capthca():
-        # TODO: change!!!
-        # global capthca solver
-        # if not capthca:
-        #     raise
         if captcha:
             captcha.report_bad()
 

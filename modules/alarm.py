@@ -5,7 +5,7 @@ import datetime
 import json
 import io
 import yaml
-from datetime import datetime, timedelta
+import datetime
 import random
 from threading import Timer
 import logging
@@ -17,7 +17,7 @@ CONFIG_FILE = "conf.yaml"
 
 
 def datetime_to_json(x):
-    if isinstance(x, datetime):
+    if isinstance(x, datetime.datetime):
         return x.strftime("%Y-%m-%dT%H:%M:%S")
     return x
 
@@ -25,7 +25,7 @@ def datetime_to_json(x):
 def datetime_from_json(json_dict):
     for (key, value) in json_dict.items():
         try:
-            json_dict[key] = datetime.strptime(value, "%Y-%m-%dT%H:%M:%S")
+            json_dict[key] = datetime.datetime.strptime(value, "%Y-%m-%dT%H:%M:%S")
         except:
             pass
     return json_dict
@@ -90,7 +90,7 @@ class Processor:
                 except Exception as e:
                     logger.error(
                         "Alarm module (user_id:{}): Exception occurred while parsing message - {}"
-                            .format(userid, e.message))
+                            .format(userid, e))
                     self.user.send_message(text=random.choice(self.config["responds_on_exception"]),
                                            chatid=chatid, userid=userid)
             elif message_body.startswith(self.config["help_request"]):
@@ -105,8 +105,8 @@ class Processor:
 
     def save_alarms(self, chat_id):
         with io.open("./files/alarms_{}.context".format(chat_id), 'w', encoding='utf-8') as f:
-            f.write(unicode(json.dumps(self.alarms, ensure_ascii=False, indent=4, separators=(',', ': '),
-                                       default=datetime_to_json)))
+            f.write(json.dumps(self.alarms, ensure_ascii=False, indent=4, separators=(',', ': '),
+                                       default=datetime_to_json))
 
     def load_alarms(self, chat_id):
         self.alarms = load_json("./files/alarms_{}.context".format(chat_id))
@@ -114,7 +114,7 @@ class Processor:
             self.alarms = {}
         else:
             for alarm_id in self.alarms.keys():
-                if self.alarms[alarm_id]["time"] < datetime.now():
+                if self.alarms[alarm_id]["time"] < datetime.datetime.now():
                     del self.alarms[alarm_id]
                 else:
                     self.set_alarm_clock(alarm_id)
@@ -134,13 +134,13 @@ class Processor:
         time = self.alarms[alarm_id]["time"]
         message = self.alarms[alarm_id]["message"]
         try:
-            t = Timer((time - datetime.now()).total_seconds(), self.timeout,
+            t = Timer((time - datetime.datetime.now()).total_seconds(), self.timeout,
                       [chat_id, user_id, time, message])
             t.start()
         except Exception as e:
             logger.error(
                 "Alarm module (user_id:{}): Exception occurred while setting alarm clock message - {}"
-                    .format(user_id, e.message))
+                    .format(user_id, e))
             raise
 
     def parse_message(self, original_message, chat_id, user_id):
@@ -160,20 +160,20 @@ class Processor:
 
             for f in timeFormats:
                 try:
-                    time = datetime.strptime(dt_str, f["format"])
+                    time = datetime.datetime.strptime(dt_str, f["format"])
                     if f["replace"] is not None:
                         for r in f["replace"]:
                             if r == "y":
-                                time = time.replace(year=datetime.now().year)
+                                time = time.replace(year=datetime.datetime.now().year)
                             if r == "m":
-                                time = time.replace(month=datetime.now().month)
+                                time = time.replace(month=datetime.datetime.now().month)
                             if r == "d":
-                                time = time.replace(day=datetime.now().day)
+                                time = time.replace(day=datetime.datetime.now().day)
                     break
                 except Exception as e:
                     logger.debug(
                         "Alarm module (user_id:{}): Exception occurred while parsing time format {} - {}"
-                            .format(user_id, f, e.message))
+                            .format(user_id, f, e))
 
         if command.find(userCommand) >= 0:
             ending = len(command)
@@ -207,8 +207,8 @@ class Processor:
             return
 
         if time is None:
-            time = datetime.now() + timedelta(seconds=30)
-        elif time < datetime.now():
+            time = datetime.datetime.now() + datetime.timedelta(seconds=30)
+        elif time < datetime.datetime.now():
             self.user.send_message(text=random.choice(self.config["responds_on_past_alarm"]),
                                    chatid=chat_id, userid=user_id)
             return
@@ -219,7 +219,7 @@ class Processor:
             if new_alarm == self.alarms[alarm_id]:
                 logger.debug(
                     "Alarm module (user_id:{}): Alarm (time:{}, message:{}) is already set!"
-                        .format(user_id, message))
+                        .format(user_id, time, message))
                 return
 
         self.alarms[len(self.alarms)] = new_alarm

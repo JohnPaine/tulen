@@ -2,15 +2,13 @@
 # -*- coding: utf-8 -*-
 
 import argparse
-import time
-import traceback
 import logging.config
+import time
 
 from parse import compile as parse_compile
 
 from seal_breeder_account_manager import *
 from seal_management_utils import *
-
 
 # logging:      --------------------------------------------------------------------------------------------------------
 LOG_SETTINGS = {

@@ -10,10 +10,10 @@ help
 googleimg
 #global like
 pixelsort
-#alarm
-#unique censor
-#unique sea_battle
-#unique hangman
+alarm
+unique censor
+unique sea_battle
+unique hangman
 #unique blackjack
 unique wiki
 unique captcha_balance

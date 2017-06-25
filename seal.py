@@ -77,8 +77,10 @@ class SealAccountManager(BaseAccountManager):
         group_id = random.choice(self.group_spam_list)
         group_members = self.vk_user.get_group_members(group_id)['items']
         user_id = random.choice(friends)
+
         if int(user_id) in group_members:
-            print("spam_group_invitations, can't add user_id: {} to group_id: {} - he's already in group!")
+            print("spam_group_invitations, can't add user_id: {} to group_id: {} - he's already in group!"
+                  .format(user_id, group_id))
             return None
 
         return self.vk_user.send_group_invitation(random.choice(self.group_spam_list), random.choice(friends))
@@ -90,7 +92,7 @@ class SealAccountManager(BaseAccountManager):
         user_id = random.choice(group_members)
 
         if int(user_id) in friends:
-            print("add_group_member_friend, can't add user_id: {} as friend - he's already a friend!")
+            print("add_group_member_friend, can't add user_id: {} as friend - he's already a friend!".format(user_id))
             return None
 
         if self.vk_user.friendAdd(user_id):

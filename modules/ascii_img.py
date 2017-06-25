@@ -67,7 +67,6 @@ class Processor:
             r = requests.get(photo_url)
             i = Image.open(io.BytesIO(r.content))
         except Exception as e:
-            traceback.print_exc()
             print("askii_img, exception: {}".format(e))
             return
 

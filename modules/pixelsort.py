@@ -42,7 +42,6 @@ class Processor:
             r = requests.get(photo_url)
             i = Image.open(io.BytesIO(r.content))
         except Exception as e:
-            traceback.print_exc()
             print("pixelsort, exception: {}".format(e))
             return
 
