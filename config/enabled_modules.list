@@ -1,15 +1,15 @@
 #dump_photos
 unique blacklist
-#ascii_img
+ascii_img
 approve
 reply
-#vkwall
+vkwall
 vkvideo
 vkdocs
-#help
+help
 googleimg
 #global like
-#pixelsort
+pixelsort
 #alarm
 #unique censor
 #unique sea_battle
@@ -18,4 +18,4 @@ googleimg
 unique wiki
 unique captcha_balance
 global add_to_friends
-#unique who
+unique who

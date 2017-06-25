@@ -4,6 +4,7 @@
 import time
 import re
 import random
+
 hlp = u'''
 Загляните сюда: https://vk.com/seal_in_vacuum. Если же не хотите - смотрите, что могу.
 
@@ -73,25 +74,27 @@ hlp = u'''
 Пожелания и предложения, ад содом и рыбу принимаю в комментарии на стенку.
 
 '''
-commands = [u"что ты умеешь", 
-		u"help",
-		u"какие команды ты знаешь",
-		u"какие у тебя комманды",
-		u"что ты можешь",
-		u"как ты работаешь",
-		u"покажи что ты умеешь",
-		u"тюлень, помощь",
-		u"тюлень помощь"]
-class Processor:
+commands = [u"что ты умеешь",
+            u"help",
+            u"какие команды ты знаешь",
+            u"какие у тебя комманды",
+            u"что ты можешь",
+            u"как ты работаешь",
+            u"покажи что ты умеешь",
+            u"тюлень, помощь",
+            u"тюлень помощь"]
 
-	def __init__(self, user):
-		self.user = user
-	def isRequest(self,message):
-		for c in commands:
-			if c in message:
-				return True
-		
-	def process_message(self, message, chatid, userid):
-		message_body = message["body"].lower()
-		if self.isRequest(message_body):
-			self.user.send_message(hlp, chatid = chatid, userid = userid)
+
+class Processor:
+    def __init__(self, user):
+        self.user = user
+
+    def is_request(self, message):
+        for c in commands:
+            if c in message:
+                return True
+
+    def process_message(self, message, chatid, userid):
+        message_body = message["body"].lower()
+        if self.is_request(message_body):
+            self.user.send_message(hlp, chatid=chatid, userid=userid)

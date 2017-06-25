@@ -101,20 +101,20 @@ class VkUser(object):
 
         for module in mod_list:
             data = module.split()
-            modif = "parallel"
+            modifier = "parallel"
             module = data[0]
             if len(data) > 1:
-                modif = data[0]
+                modifier = data[0]
                 module = data[1]
 
             package = __import__("modules" + "." + module)
             processor = getattr(package, module)
             modprocessor = processor.Processor(self)
 
-            add_module(modif, modprocessor)
+            add_module(modifier, modprocessor)
 
             logger.info("Loaded module: [{}] as {}".format(
-                "modules" + "." + module, modif))
+                "modules" + "." + module, modifier))
 
     def init_multithreading(self):
         # create message queue: general (first step for uniq modules)
@@ -208,28 +208,21 @@ class VkUser(object):
 
     def process_message_global(self, message):
         try:
+            print("process_message_global, message: {}".format(message))
             for mod in self.modules["global"]:
+                print('\tprocess message in module: {}'.format(mod))
                 self.process_message_in_module(mod, message)
         except:
             logger.exception("Error in global modules processing")
 
     def process_message_in_module(self, module, message):
         # because VK wants only user_id or chat_id, and chat_id in priority
+        print("process_message_in_module, module: {}, message: {}".format(module, message))
         chat_id = message.get("chat_id", None)
         user_id = None
 
         if not chat_id:
             user_id = message.get("user_id", None)
-        else:
-            pass
-            # checking if this chat_id is in disabled_chats list
-            # TODO: check!!!
-            # if str(chat_id) in self.config['disabled_chats']:
-            #     logger.info(
-            #         "process_message_in_module: skipping messages from chat_id:{} as it's in disabled_chats list: {}"
-            #     .format(str(chat_id), self.config['disabled_chats']))
-            #     return True
-            # logger.info("process_message_in_module: chat_id:{} is not in disabled_chats list: {} - processing...")
 
         return module.process_message(message, chat_id, user_id)
 
@@ -324,11 +317,11 @@ class VkUser(object):
         logger.info("response is {}".format(repr(ret)))
         return ret
 
-    def get_all_friends(self, fields):
+    def get_friends(self, fields=None, user_id=None, order='name', count=None, offset=None):
         operation = self.api.friends.get
-        args = {"fields": fields}
+        args = {"fields": fields, "order": order, "count": count, "offset": offset, "user_id": user_id}
         ret = vkrequest.perform(operation, args)
-        logger.info("Got friends")
+        logger.info("Got friends: {}".format(ret))
         return ret
 
     @SealMode.collect_vk_user_action_stats
@@ -424,8 +417,8 @@ class VkUser(object):
         args = {"group_id": self.my_uid}
 
         upserver = vkrequest.perform(op, args)
-        # TODO: change!!!
-        photos = self.__upload_images(upserver, files)
+
+        photos = self.__upload_images_vk(upserver, files)
         logger.info("Uploaded wall images")
         ids = photos
         attachments = []
@@ -441,9 +434,10 @@ class VkUser(object):
                 resp = vkrequest.perform(op, args)
                 attachments.append(
                     "photo" + str(resp[0]["owner_id"]) + "_" + str(resp[0]["id"]))
-            except:
-                logger.exception("Saving wall image failed")
-                raise
+            except Exception as e:
+                traceback.print_exc()
+                logger.exception("Saving wall image failed, e: {}".format(e))
+                break
 
         return attachments
 
@@ -529,6 +523,7 @@ class VkUser(object):
         op = self.api.friends.add
         args = {"user_id": user_id}
         resp = vkrequest.perform(op, args)
+        print('friend Add response: {}'.format(resp))
         return True
 
     @SealMode.collect_vk_user_action_stats
@@ -552,6 +547,8 @@ class VkUser(object):
             offset = count
             print('get_dialogs, new_count: {}, new_offset: {}'.format(new_count, offset))
             items.append(self.get_dialogs(offset, new_count))
+
+        print('\n\n\n\n\tget_dialogs, items: {}\n\n\n'.format(items))
 
         return items
 
@@ -623,5 +620,18 @@ class VkUser(object):
         resp = vkrequest.perform(op, args)
 
         print('get_chat_users response: {}'.format(resp))
+
+        return resp
+
+    @SealMode.collect_vk_user_action_stats
+    def send_group_invitation(self, group_id, user_id):
+        print('sending group invitation for group_id: {}, to user_id: {}'.format(group_id, user_id))
+
+        op = self.api.groups.invite
+        args = {"group_id": group_id,
+                "user_id": user_id}
+        resp = vkrequest.perform(op, args)
+
+        print('send_group_invitation response: {}'.format(resp))
 
         return resp

@@ -126,12 +126,12 @@ current_receiver_id = seal_breeder.receiver_id
 def process_step(iter_counter):
     try:
         time.sleep(1.0)
-        seal_breeder.consume_messages()
+        seal_breeder.try_process(seal_breeder.consume_messages)
 
         if iter_counter.counter % 20 == 0:
-            seal_breeder.check_alive()
-            # TODO: fix addUserToChat???
-            seal_breeder.balance_seals_for_chats()
+            seal_breeder.try_process(seal_breeder.check_alive)
+            seal_breeder.try_process(seal_breeder.balance_seals_for_chats)
+
     except Exception as e:
         msg = 'Something went wrong while processing step for seal_breeder, e: {}'.format(e)
         logger.exception(msg)

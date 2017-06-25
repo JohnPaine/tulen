@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from functools import wraps
+import traceback
 
 import pika
 
@@ -334,5 +335,14 @@ class BaseAccountManager:
     def consume_messages(self, loop_limit=10):
         for _ in range(loop_limit):
             consume_queue_messages_(self.listener_channel, self.receiver_id)
+
+    def try_process(self, func, *args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except Exception as e:
+            msg = 'Something went wrong while processing: {} for receiver_id: {}, e: {}'\
+                .format(func, self.receiver_id, e)
+            print(msg)
+            traceback.print_exc()
 
 # account manager       ------------------------------------------------------------------------------------------------

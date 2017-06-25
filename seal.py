@@ -5,7 +5,6 @@ import argparse
 import logging.config
 import random
 import time
-import traceback
 import uuid
 
 import yaml
@@ -49,11 +48,12 @@ logger = logging.getLogger("seal")
 
 # amqp management       ================================================================================================
 class SealAccountManager(BaseAccountManager):
-    def __init__(self, seal_id, mode):
+    def __init__(self, seal_id, mode, group_spam_list=None):
         super().__init__(seal_id)
         self.mode = mode
         self.vk_user = None
         self.other_seals_ids = []
+        self.group_spam_list = group_spam_list if group_spam_list else []
 
     def __enter__(self):
         print('SealAccountManager.__enter__')
@@ -70,6 +70,13 @@ class SealAccountManager(BaseAccountManager):
         super().publish_message(signal, MANAGER_NAME, message)
 
     # BaseAccountManager interface      ================================================================================
+
+    # vk api            ================================================================================================
+    def spam_group_invitations(self):
+        friends = self.vk_user.get_friends()['items']
+        return self.vk_user.send_group_invitation(random.choice(self.group_spam_list), random.choice(friends))
+
+    # vk api            ================================================================================================
 
 
 seal = None
@@ -338,18 +345,15 @@ def process_step(iter_counter, to_sleep=None):
     try:
         if to_sleep:
             time.sleep(to_sleep)
-        seal.consume_messages()
+        seal.try_process(seal.consume_messages)
 
         if iter_counter.counter % 10 == 0:
-            try:
-                send_action_stats()
-            except Exception as e:
-                msg = 'Something went wrong while sending stats for seal: {}, e: {}'.format(seal.receiver_id, e)
-                logger.exception(msg)
-                traceback.print_exc()
-                seal.publish_message_to_manager(SEAL_EXCEPTION_OCCURRED_MSG,
-                                                SEAL_EXCEPTION_OCCURRED_MSG_format.format(seal.receiver_id, msg))
-        process_vk_messages(seal.vk_user)
+            seal.try_process(send_action_stats)
+
+        if iter_counter.counter % random.randint(400, 1000) == 0:
+            seal.try_process(seal.spam_group_invitations)
+
+        seal.try_process(process_vk_messages, seal.vk_user)
 
         print("*** process_step ---> seal's processing messages ...")
     except Exception as e:
@@ -374,7 +378,7 @@ def process(config, config_file_name, run_mode, test_mode, only_for_uid):
     print("SealAccountManager process started for config_file: {} and seal_id: {}".format(config_file_name, seal_id))
 
     global seal, current_receiver_id
-    seal = SealAccountManager(seal_id, run_mode)
+    seal = SealAccountManager(seal_id, run_mode, config.get('group_spam_list', None))
     current_receiver_id = seal_id
     iter_counter = IterCounter(max_count=random.randint(30, 50), raise_exception=False)
 

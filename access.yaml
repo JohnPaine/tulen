@@ -20,3 +20,7 @@ stats_file: statistics.yaml
 message_count: 200
 
 #modules_config_dir: config
+
+# sending user invitations to these groups
+group_spam_list:
+    - 137007462     # seal_in_vacuum

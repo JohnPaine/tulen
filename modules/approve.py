@@ -9,6 +9,7 @@ import os
 
 CONFIG_FILE = "conf.yaml"
 
+
 class Processor:
     def __init__(self, vkuser):
         self.user = vkuser
@@ -23,12 +24,12 @@ class Processor:
                 self.user.send_sticker(userid, userid, chatid)
             except:
                 pass
-	
+
         if rep.startswith("img:"):
-            
+
             f = self.user.module_file("approve", rep[rep.rindex("img"):])
-            attc = self.user.upload_images_files([f,])
-            self.user.send_message(text = "", attachments = attc, chatid=chatid, userid=userid)
+            attc = self.user.upload_images_files([f, ])
+            self.user.send_message(text="", attachments=attc, chatid=chatid, userid=userid)
             return
         else:
             self.user.send_message(text=rep, chatid=chatid, userid=userid)
@@ -37,7 +38,7 @@ class Processor:
         responded = False
 
         for word in self.config.keys():
-            
+
             message_body = message["body"].lower()
 
             prog = re.compile(word)
@@ -45,9 +46,8 @@ class Processor:
             if prog.match(message_body):
                 self.respond(word, chatid, userid)
                 responded = True
-            
-        if chatid == None and not responded:
-            pu_dicts = [k for k in self.config.keys() if self.config[k].get("private_use",False)]
+
+        if chatid is None and not responded:
+            pu_dicts = [k for k in self.config.keys() if self.config[k].get("private_use", False)]
             self.respond(random.choice(pu_dicts), chatid, userid)
             return
-

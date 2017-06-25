@@ -189,7 +189,7 @@ class Processor:
         if command.find(textCommand) >= 0:
             message = command[command.index(textCommand) + len(textCommand): len(command)]
 
-        friends = self.user.get_all_friends(["domain"])
+        friends = self.user.get_friends(["domain"])
 
         is_friend = False
         for friend in friends["items"]:

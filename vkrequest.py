@@ -16,6 +16,10 @@ import utils
 
 logger = logging.getLogger("seal")
 
+def create_dir(path):
+    if not os.path.exists(path):
+        os.makedirs(path)
+
 
 class Captcha2Captcha:
     def __init__(self, key):
@@ -32,10 +36,12 @@ class Captcha2Captcha:
     def balance(self):
         return self.api.get_balance()
 
-    @staticmethod
-    def report_bad():
-        if captcha:
-            Captcha.report_bad()
+    def report_bad(self):
+        try:
+            if self.last_captcha:
+                self.last_captcha.report_bad()
+        except Exception as e:
+            print(e)
 
 
 captcha = None
@@ -119,6 +125,7 @@ def update_minfo(method, type, incr):
         return
 
     method_name = method._method_name
+    create_dir("./files")
     with JSON_LOCK:
         json_obj = utils.load_json("./files/minfo.json")
         if not json_obj:
@@ -128,7 +135,7 @@ def update_minfo(method, type, incr):
             mmap[type] = mmap.get(type, 0) + incr
             json_obj[method_name] = mmap
         to_write = utils.pretty_dump(json_obj)
-        open("./files/minfo.json", "wb").write(to_write)
+        open("./files/minfo.json", "wb+").write(to_write)
 
 
 def info_string(method, val):
@@ -162,8 +169,8 @@ def perform(operation, args):
         # global capthca solver
         # if not capthca:
         #     raise
-        # if this_captcha:
-        Captcha2Captcha.report_bad()
+        if captcha:
+            captcha.report_bad()
 
         CAPTHCA_FREE.clear()
 
@@ -200,9 +207,10 @@ def perform(operation, args):
                     # TODO: change!!!
                     file.write(info_string(operation,
                                            "CAPTCHA OK [{}]; balance [{}]".format(args.get("captcha_key", None),
-                                                                                  TwoCaptchaApi.get_balance())))
+                                                                                  captcha.balance())))
                 else:
-                    file.write(info_string(operation, "OK"))
+                    pass
+                    # file.write(info_string(operation, "OK"))
 
                 # inform other threads that they can continue
                 CAPTHCA_FREE.set()
