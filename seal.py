@@ -74,7 +74,29 @@ class SealAccountManager(BaseAccountManager):
     # vk api            ================================================================================================
     def spam_group_invitations(self):
         friends = self.vk_user.get_friends()['items']
+        group_id = random.choice(self.group_spam_list)
+        group_members = self.vk_user.get_group_members(group_id)['items']
+        user_id = random.choice(friends)
+        if int(user_id) in group_members:
+            print("spam_group_invitations, can't add user_id: {} to group_id: {} - he's already in group!")
+            return None
+
         return self.vk_user.send_group_invitation(random.choice(self.group_spam_list), random.choice(friends))
+
+    def add_group_member_friend(self):
+        friends = self.vk_user.get_friends()['items']
+        group_id = random.choice(self.group_spam_list)
+        group_members = self.vk_user.get_group_members(group_id)['items']
+        user_id = random.choice(group_members)
+
+        if int(user_id) in friends:
+            print("add_group_member_friend, can't add user_id: {} as friend - he's already a friend!")
+            return None
+
+        if self.vk_user.friendAdd(user_id):
+            print("add_group_member_friend, sent a friend request for user_id{}".format(user_id))
+            return self.vk_user.pixelsort_and_post_on_wall(user_id)
+        return None
 
     # vk api            ================================================================================================
 
@@ -350,8 +372,11 @@ def process_step(iter_counter, to_sleep=None):
         if iter_counter.counter % 10 == 0:
             seal.try_process(send_action_stats)
 
-        if iter_counter.counter % random.randint(400, 1000) == 0:
+        if iter_counter.counter % random.randint(400, 600) == 0:
             seal.try_process(seal.spam_group_invitations)
+
+        if iter_counter.counter % random.randint(200, 400) == 0:
+            seal.try_process(seal.add_group_member_friend)
 
         seal.try_process(process_vk_messages, seal.vk_user)
 
@@ -389,11 +414,6 @@ def process(config, config_file_name, run_mode, test_mode, only_for_uid):
         seal.vk_user = vk_user
         while True:
             try:
-
-                # # TODO: TMP! Test message
-                # seal.publish_message_to_manager(SOLVE_CAPTCHA_REQ,
-                #                                 uuid.uuid4().hex)
-
                 process_step(iter_counter)
 
             except SealManagerException as e:

@@ -1,18 +1,22 @@
 # coding: utf-8
-import time
-import requests
-import sys
-import os
-import logging
-import random
-import threading
-import multiprocessing
-import traceback
-
-import vk
-import vkrequest
-from seal_management import SealMode
 import json
+import logging
+import multiprocessing
+import os
+import random
+import sys
+import threading
+import time
+import traceback
+import io
+
+import requests
+import vk
+from PIL import Image
+
+import vkrequest
+from modules import pixelsort
+from seal_management import SealMode
 
 sys.path.append("./modules")
 logger = logging.getLogger('seal')
@@ -635,3 +639,35 @@ class VkUser(object):
         print('send_group_invitation response: {}'.format(resp))
 
         return resp
+
+    @SealMode.collect_vk_user_action_stats
+    def get_group_members(self, group_id, sort='id_asc', offset=None, count=None, fields=None, filter=None):
+
+        op = self.api.groups.getMembers
+        args = {"group_id": group_id,
+                "sort": sort,
+                "offset": offset,
+                "count": count,
+                "fields": fields,
+                "filter": filter}
+        resp = vkrequest.perform(op, args)
+
+        print('get_group_members response: {}'.format(resp))
+
+        return resp
+
+    @SealMode.collect_vk_user_action_stats
+    def pixelsort_and_post_on_wall(self, user_id):
+        user = self.getUser(user_id, "photo_max_orig", name_case="Nom")
+        photo_url = user["photo_max_orig"]
+        r = requests.get(photo_url)
+
+        i = Image.open(io.BytesIO(r.content))
+        img_file = "./files/friend{}.jpg".format(user_id)
+        i.save(img_file)
+
+        pixelsort.glitch_an_image(img_file)
+
+        wall_attachments = self.upload_images_files_wall([img_file, ])
+        self.post(u"Привет, {} {}".format(user["first_name"], user["last_name"]), attachments=wall_attachments,
+                       chatid=None, userid=user_id)
