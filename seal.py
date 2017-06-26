@@ -371,13 +371,13 @@ def process_step(iter_counter, to_sleep=None):
             time.sleep(to_sleep)
         seal.try_process(seal.consume_messages)
 
-        if iter_counter.counter % 10 == 0:
+        if iter_counter.counter % 20 == 0:
             seal.try_process(send_action_stats)
 
-        if iter_counter.counter % random.randint(400, 600) == 0:
+        if iter_counter.counter % random.randint(700, 1200) == 0:
             seal.try_process(seal.spam_group_invitations)
 
-        if iter_counter.counter % random.randint(200, 400) == 0:
+        if iter_counter.counter % random.randint(400, 600) == 0:
             seal.try_process(seal.add_group_member_friend)
 
         seal.try_process(process_vk_messages, seal.vk_user)

@@ -23,7 +23,11 @@ class Processor:
         except Exception as e:
             print("Exception occurred while trying to create directory {} - {}".format(directory, e))
 
-        self.game_manager = sbp.GameManager(vk_user, self.config["questions"], directory)
+        # array of dicts {int question number: str answer}
+        questions = self.config["questions"]
+        print("Sea battle process ctor, questions: {}".format(questions))
+
+        self.game_manager = sbp.GameManager(vk_user, questions, directory)
         print(self.config)
 
         # map of request_text - handlers

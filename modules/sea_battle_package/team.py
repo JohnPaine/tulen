@@ -37,6 +37,13 @@ class Team:
         self.ships_count = 0
         self.points = []
 
+    def __str__(self):
+        data_dict = self.serialize()
+        description = u"Team ("
+        for key, val in data_dict.items():
+            description += u"{}:{},".format(key, val)
+        return description + u")\n\n."
+
     def process_drawn_ships(self):
         for rank in sp.SHIP_RANKS_DICT:
             for ship in self.ships[rank]:

@@ -1,7 +1,9 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
+import functools
 from .game_constants import *
+import traceback
 
 
 # def enum(*sequential, **named):
@@ -231,6 +233,23 @@ def need_no_opponent_set(f):
             return OPPONENT_IS_ALREADY_SET_MSG.format(game_context.op_team_name)
 
     return wrapper
+
+
+def execute_after(exec_method, and_before=False):
+    def real_decorator(func):
+        @functools.wraps(func)
+        def _(self, *args, **kwargs):
+            try:
+                if and_before:
+                    exec_method(self, None, *args, **kwargs)
+                result = func(self, *args, **kwargs)
+                exec_method(self, result, *args, **kwargs)
+            except Exception as e:
+                traceback.print_exc()
+                return e
+            return result
+        return _
+    return real_decorator
 
 
 def need_question_answered(f):
