@@ -552,8 +552,6 @@ class VkUser(object):
             print('get_dialogs, new_count: {}, new_offset: {}'.format(new_count, offset))
             items.append(self.get_dialogs(offset, new_count))
 
-        print('\n\n\n\n\tget_dialogs, items: {}\n\n\n'.format(items))
-
         return items
 
     @SealMode.collect_vk_user_action_stats

@@ -100,7 +100,6 @@ SEALS_TO_MANAGER_SLOT_MAP = {SOLVE_CAPTCHA_REQ: on_solve_captcha_request,
 def seal_breeder_main_slot(channel, method, header, body):
     """Accepts ALL the messages from seals."""
 
-    # print("seal_breeder_main_slot, body: {},\n\theader: {},\n\tmethod: {}".format(body, header, method))
     print("seal_breeder_main_slot, routing_key: {}\n".format(method.routing_key))
 
     signal = method.routing_key.split('.')[0]

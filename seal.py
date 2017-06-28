@@ -286,7 +286,6 @@ SLOT_DICT = {**MANAGER_TO_SEAL_SLOT_MAP, **SEAL_TO_SEAL_SLOT_MAP}
 def seal_main_slot(channel, method, header, body):
     """Accepts ALL the commands from seals and manager."""
 
-    # print("seal_main_slot, body: {},\n\theader: {},\n\tmethod: {}".format(body, header, method))
     print("\nON_seal_main_slot, routing_key: {}\n\n".format(method.routing_key))
 
     signal = method.routing_key.split('.')[0]

@@ -227,7 +227,8 @@ class Team:
                             j = last_point.x - 1
 
                     point = sp.Point(j, i, rank, False)
-                    if not sp.Point.fits_field(point) or point in field_points or not sp.Point.can_add_point_to_field(field_points, point):
+                    if not sp.Point.fits_field(point) or point in field_points or not sp.Point.can_add_point_to_field(
+                            field_points, point):
                         if len(ship.points) > 1:
                             ship.points = [ship.points[0]]
                         direction = Direction.NONE
@@ -271,7 +272,8 @@ class Team:
                     was_hit = False
                     if self.field_of_shots is not None and len(self.field_of_shots) == len(field):
                         # '_' for unknown cell, '.' for missed shot, 'x' for hit ship, 'X" for drawn ship
-                        was_hit = self.field_of_shots[j + i * MAP_SIZE] == Shots.DRAWN or self.field_of_shots[j + i * MAP_SIZE] == Shots.HIT
+                        was_hit = self.field_of_shots[j + i * MAP_SIZE] == Shots.DRAWN or self.field_of_shots[
+                                                                                              j + i * MAP_SIZE] == Shots.HIT
 
                     point = sp.Point(j, i, int(field[j + i * MAP_SIZE]), was_hit)
                     if not point.value:

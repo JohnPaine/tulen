@@ -17,20 +17,14 @@ class GameManager:
         self.directory = directory
         self.questions = {}
 
-        # questions - array of dicts {int question number: str answer}
+        # questions - array of dicts: {int question number: str answer}
         if not questions or len(questions) == 0:
-            # self.questions = map(lambda x: {x: str(x)}, range(1, 201))
             for i in range(1, 201):
                 self.questions[i] = str(i)
-
-            print('sea battle, generated questions: {}'.format(self.questions))
         else:
             for q_dict in questions:
                 key = next(iter(q_dict))
                 self.questions[int(key)] = q_dict[key]
-
-            print('sea battle, loaded from config questions: {}'.format(self.questions))
-
         self.max_score = reduce(lambda x, y: x + y, (key * value for key, value in shipRanks.items()))
 
         # serializable data
@@ -68,7 +62,7 @@ class GameManager:
     def __enter__(self):
         self.lock.acquire()
 
-    def __exit__(self, type, value, traceback):
+    def __exit__(self, _type, _value, _traceback):
         self.process_bot_turn()
         if self.check_winner():
             self.stop_game_session()
@@ -178,6 +172,7 @@ class GameManager:
     def get_questions(self, message=""):
         # return u"Воспросы смотрите у меня на стене"
         ans = u"\n"
+        # TODO: tmp! printing answers instead of questions!!! Rename questions to answers and add list of questions!!!
         for q_num, q_ans in self.questions.items():
             ans += u"Вопрос {}: {}\n".format(q_num, q_ans)
 
@@ -230,6 +225,7 @@ class GameManager:
             return self.start_game_with(op_team_name)
         except Exception as e:
             print("Exception occurred while parsing opponent team name - {}".format(e))
+            traceback.print_exc()
             return u"Эммм, что-то пошло не так =/ Попробуйте ещё раз"
 
     @need_game_session
@@ -237,7 +233,7 @@ class GameManager:
     @need_registration
     @need_valid_map
     @need_game_not_started
-    def bot_game_request(self, message):
+    def bot_game_request(self, message=""):
         return self.start_game_with_bot()
 
     @need_game_session
@@ -401,6 +397,7 @@ class GameManager:
         except Exception as e:
             print("Exception occurred while saving game results: {}" \
                   .format(e))
+            traceback.print_exc()
 
     @need_game_session
     def stop_game_session(self, message=""):
@@ -458,13 +455,10 @@ class GameManager:
             if i >= 0:
                 self.games = [g for j, g in enumerate(self.games) if j != i]
 
-            try:
-                if team_name:
-                    del self.teams[team_name]
-                if opponent_name:
-                    del self.teams[opponent_name]
-            except Exception as e:
-                print("Exception while deleting teams - {}".format(e))
+            if team_name:
+                self.remove_team(team_name)
+            if opponent_name:
+                self.remove_team(opponent_name)
 
         self.active_sessions = [session for session in self.active_sessions if session["session_uid"] != self.uid]
         self.game_context.this_team = None
@@ -477,8 +471,6 @@ class GameManager:
     def shot_was_made(self, hit, team):
         team.question_answered = False
         active, questioned = self.session_is_active()
-
-        # TODO: check and change score counting!
 
         team.score += team.score_per_hit if hit else 0
         team.score += 1 if hit and (not questioned or self.is_bot_game()) else 0
@@ -501,6 +493,7 @@ class GameManager:
             return True
         except Exception as e:
             print("Exception while deleting team - {}".format(e))
+            traceback.print_exc()
             return False
 
     def is_bot_game(self):
@@ -568,6 +561,7 @@ class GameManager:
                     return True, bool(session["questioned_game"])
         except Exception as e:
             print("Exception occurred while checking session - {}".format(e))
+            traceback.print_exc()
         return False, False
 
     def send_message(self, uid, chat_id, message, attachments=None):
@@ -579,7 +573,8 @@ class GameManager:
             else:
                 self.vk_user.send_message(text=message, userid=uid, chatid=None, attachments=attachments)
         except Exception as e:
-            print("Exception occured while sending message, sea_battle.game_manager - {}".format(e))
+            print("Exception occurred while sending message, sea_battle.game_manager - {}".format(e))
+            traceback.print_exc()
 
     def generate_bot_field(self):
         while True:
@@ -711,4 +706,4 @@ class GameManager:
             return game["winner"]
         return ""
 
-        #   ================================= GET from GameManager =========================================================
+    #   ================================= GET from GameManager =========================================================
