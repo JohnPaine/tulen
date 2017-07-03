@@ -7,6 +7,7 @@ import time
 import urllib.request as url_request
 # from urllib3 import request
 from datetime import datetime
+import traceback
 
 import psutil
 from twocaptchaapi import TwoCaptchaApi, Captcha
@@ -15,6 +16,7 @@ from vk.exceptions import VkAPIError
 import utils
 
 logger = logging.getLogger("seal")
+
 
 def create_dir(path):
     if not os.path.exists(path):
@@ -68,28 +70,29 @@ CAPTHCA_FREE.set()
 
 
 # rate-limit decorator, but works only in one thread
-def RateLimited(maxPerSecond):
-    minInterval = 1.0 / float(maxPerSecond)
+def rate_limit_operation(max_operations_per_second):
+    min_interval = 1.0 / float(max_operations_per_second)
 
     def decorate(func):
-        lastTimeCalled = [0.0]
+        last_time_called = [0.0]
 
-        def rateLimitedFunction(*args, **kargs):
-            elapsed = time.clock() - lastTimeCalled[0]
-            leftToWait = minInterval - elapsed
-            if leftToWait > 0:
-                time.sleep(leftToWait)
-            ret = func(*args, **kargs)
-            lastTimeCalled[0] = time.clock()
+        def rate_limited_function(*args, **kwargs):
+            elapsed = time.clock() - last_time_called[0]
+            left_to_wait = min_interval - elapsed
+
+            if left_to_wait > 0:
+                time.sleep(left_to_wait)
+
+            ret = func(*args, **kwargs)
+            last_time_called[0] = time.clock()
+
             return ret
-
-        return rateLimitedFunction
-
+        return rate_limited_function
     return decorate
 
 
-def run_ratelimit_dispatcher():
-    # yes, it's a process. we need a process to avoid interference with main process.
+def run_rate_limit_dispatcher():
+    # yes, it's a process. we need a process to avoid interference with the main process.
     p = multiprocessing.Process(target=rl_dispatch)
     p.daemon = True
     p.start()
@@ -97,8 +100,8 @@ def run_ratelimit_dispatcher():
     return p
 
 
-# this method can be trigerred only N times per second. (per thread/process)
-@RateLimited(2.5)
+# this method can be triggered only N times per second. (per thread/process)
+@rate_limit_operation(1.0)
 def set_event():
     try:
         RATED_LOCK.release()
@@ -106,9 +109,9 @@ def set_event():
         pass
 
 
-# to synchronize set_event between threads/processes we use event queue.
-# when there is a message in queue, it means that PERFORM method was invoked and it locked the rated_lock.
-# so we can try to unlock it, if rate_limit decorator allows.
+# to synchronize set_event between threads/processes we use the event queue.
+# when there is a message in the queue, it means that the PERFORM method was invoked and it locked the rated_lock.
+# so we can try to unlock it, if the rate_limit decorator allows to do that.
 def rl_dispatch():
     set_event()
     while True:
@@ -141,7 +144,8 @@ def update_minfo(method, type, incr):
 def info_string(method, val):
     process = psutil.Process(os.getpid())
     return datetime.now().strftime('%H:%M:%S') + "\t" + str(method) + "\t" + str(
-        process.memory_info().rss / 1024.0 / 1024.0) + "\t" + str(val) + "\t" + "\t" + str(threading.active_count()) + "\n"
+        process.memory_info().rss / 1024.0 / 1024.0) + "\t" + str(val) + "\t" + "\t" + str(
+        threading.active_count()) + "\n"
 
 
 def perform_now(operation, args):
@@ -179,6 +183,7 @@ def perform(operation, args):
         except:
             res = None
             logger.exception("Something bad in captcha solving")
+            traceback.print_exc()
 
         return res
 
@@ -200,7 +205,6 @@ def perform(operation, args):
                 # on prev iteration solved capcha, it is in args
                 if args.get("captcha_key", None):
                     update_minfo(operation, "capthca_ok", 1)
-                    # TODO: change!!!
                     file.write(info_string(operation,
                                            "CAPTCHA OK [{}]; balance [{}]".format(args.get("captcha_key", None),
                                                                                   captcha.balance())))

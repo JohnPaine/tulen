@@ -2,7 +2,7 @@
 #   https://oauth.vk.com/authorize?client_id=4775188&display=page&redirect_uri=http://oauth.vk.com/blank&scope=audio,offline,friends,messages,photos,video,docs,wall&response_type=token&v=5.37
 
 access_token: 
-        value: 123qweasdzxc456rtyfghvbn789uiojklm
+        value: 90fb8c4b46b8144bde4bade64419bb3e
         user_id: 123456789
         expires_in: 0
         connection_timeout: 10

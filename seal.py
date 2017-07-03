@@ -376,12 +376,11 @@ def process_step(iter_counter, to_sleep=None):
         if iter_counter.counter % random.randint(700, 1200) == 0:
             seal.try_process(seal.spam_group_invitations)
 
-        if iter_counter.counter % random.randint(400, 600) == 0:
+        if iter_counter.counter % random.randint(300, 600) == 0:
             seal.try_process(seal.add_group_member_friend)
 
         seal.try_process(process_vk_messages, seal.vk_user)
 
-        print("*** process_step ---> seal's processing messages ...")
     except Exception as e:
         msg = 'Something went wrong while processing step for seal: {}, e: {}'.format(seal.receiver_id, e)
         logger.exception(msg)
@@ -406,13 +405,12 @@ def process(config, config_file_name, run_mode, test_mode, only_for_uid):
     global seal, current_receiver_id
     seal = SealAccountManager(seal_id, run_mode, config.get('group_spam_list', None))
     current_receiver_id = seal_id
-    iter_counter = IterCounter(max_count=random.randint(30, 50), raise_exception=False)
+    iter_counter = IterCounter(current_receiver_id, max_count=random.randint(1000, 1500), raise_exception=True)
 
     seal.bind_slot(MANAGER_NAME, list(MANAGER_TO_SEAL_SLOT_MAP.keys()), seal_main_slot)
     seal.bind_slot('*', list(SEAL_TO_SEAL_SLOT_MAP.keys()), seal_main_slot)
 
-    with prepare_vk_user(config, test_mode, run_mode, only_for_uid) as vk_user:
-        seal.vk_user = vk_user
+    with prepare_vk_user(config, test_mode, run_mode, only_for_uid) as seal.vk_user:
         while True:
             try:
                 process_step(iter_counter)

@@ -168,8 +168,8 @@ def publish_message_(channel, routing_key, message, content_type='text/plain'):
     exchange = get_exchange_type_(routing_key)
     declare_exchange_(channel, exchange)
 
-    print('\tperforming basic publish: message:{},\n\texchange:{},\n\tprops:{},\n\trouting_key:{}\n'
-          .format(message, exchange, msg_props, routing_key))
+    # print('\tperforming basic publish: message:{},\n\texchange:{},\n\tprops:{},\n\trouting_key:{}\n'
+    #       .format(message, exchange, msg_props, routing_key))
 
     channel.basic_publish(body=message,
                           exchange=exchange,
@@ -195,11 +195,11 @@ def check_routing(signal=None):
             if not receiver_id:
                 return f(*args, **kwargs)
 
-            print('check_routing for receiver_id: {}, signal: {}'.format(receiver_id, signal))
+            # print('check_routing for receiver_id: {}, signal: {}'.format(receiver_id, signal))
 
             method = args[1]
-            print('checking routing_key: {} for receiver_id: {} and signal: {}'
-                  .format(method.routing_key, receiver_id, signal))
+            # print('checking routing_key: {} for receiver_id: {} and signal: {}'
+            #       .format(method.routing_key, receiver_id, signal))
             routing_keys = method.routing_key.split('.')
             if signal:
                 assert str(routing_keys[0]) == str(signal), \
@@ -313,8 +313,8 @@ class BaseAccountManager:
 
     @SealMode.check_standalone_mode
     def publish_message(self, signal, receiver_id, message=''):
-        print('BaseAccountManager publishing message: {}, for signal: {}, sender_id:{}, receiver_id:{}'
-              .format(message, signal, str(self.receiver_id), str(receiver_id)))
+        # print('BaseAccountManager publishing message: {}, for signal: {}, sender_id:{}, receiver_id:{}'
+        #       .format(message, signal, str(self.receiver_id), str(receiver_id)))
 
         with setup_amqp_connection_() as self.publisher_connection:
             routing_key = BaseAccountManager.make_routing_key(signal, self.receiver_id, receiver_id)

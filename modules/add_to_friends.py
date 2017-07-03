@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 import random
 from threading import Timer
+import traceback
 
 # logging.basicConfig()
 # log = logging.getLogger(__name__)
@@ -15,9 +16,10 @@ class Processor:
         self.mc = 0
         self.uids = set()
         self.blocked = False
+        self.failed_users = set()
 
     def process_message(self, message, chatid, userid):
-        print('Add to friends, process_message mc: {} for chat_id: {}, user_id: {}'.format(self.mc, chatid, userid))
+        # print('Add to friends, process_message mc: {} for chat_id: {}, user_id: {}'.format(self.mc, chatid, userid))
         user_id = message["user_id"]
         self.uids.add(user_id)
         self.uids.add(userid)
@@ -26,13 +28,20 @@ class Processor:
         if self.mc % random.randint(2, 4) != 0:
             return
 
-        print('Add to friends process_message called with user_id: {}'.format(user_id))
+        # print('Add to friends process_message called with user_id: {}'.format(user_id))
         self.mc = 0
         uids = self.user.getRequests()
         for uid in uids:
-            if self.user.friendAdd(uid):
-                print("Sent a friend req for id{}".format(uid))
-                self.user.pixelsort_and_post_on_wall(uid)
+            try:
+                if uid in self.failed_users:
+                    continue
+                if self.user.friendAdd(uid):
+                    print("Sent a friend req for id{}".format(uid))
+                    self.user.pixelsort_and_post_on_wall(uid)
+            except Exception as e:
+                print('Failed to add user {}, exception: {}'.format(uid, e))
+                self.failed_users.add(uid)
+                traceback.print_exc()
 
         if self.mc < 10:
             return
@@ -46,39 +55,30 @@ class Processor:
 
             if item["friend_status"] == 0:
                 try:
-                    if self.user.friendAdd(item["user_id"]):
+                    uid = item["user_id"]
+                    if uid in self.failed_users:
+                        continue
+                    if self.user.friendAdd(uid):
 
-                        print("Send a friend req for  id{}".format(user_id))
-                        self.user.pixelsort_and_post_on_wall(item["user_id"])
+                        print("Sent a friend req for  id{}".format(uid))
+                        self.user.pixelsort_and_post_on_wall(uid)
                     else:
-                        print("Failed to send a friend req for  id{}".format(user_id))
+                        print("Failed to send a friend req for  id{}".format(uid))
+                        self.failed_users.add(uid)
+
                 except VkAPIError as e:
 
                     if e.code != 175 and e.code != 176:
                         self.blocked = True
                         t = Timer(60 * 60 * 2, self.unblock, [])
                         t.start()
-                        raise
+                        traceback.print_exc()
+                except Exception as e:
+                    print("Something wrong in add_to_friends module, e: {}".format(e))
+                    traceback.print_exc()
 
     def unblock(self):
 
         self.blocked = False
         self.uids = set()
         self.mc = 0
-
-    # def pixelsort_and_post_on_wall(self, user_id):
-    #     user = self.user.getUser(user_id, "photo_max_orig", name_case="Nom")
-    #     photo_url = user["photo_max_orig"]
-    #     r = requests.get(photo_url)
-    #
-    #     print('pixelsort_and_post_on_wall, r:{}, r.content: {}'.format(r, r.content))
-    #
-    #     i = Image.open(StringIO(r.content.decode('utf-8')))
-    #     img_file = "./files/friend{}.jpg".format(user_id)
-    #     i.save(img_file)
-    #
-    #     pixelsort.glitch_an_image(img_file)
-    #
-    #     wall_attachments = self.user.upload_images_files_wall([img_file, ])
-    #     self.user.post(u"Привет, {} {}".format(user["first_name"], user["last_name"]), attachments=wall_attachments,
-    #                    chatid=None, userid=user_id)

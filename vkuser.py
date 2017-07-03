@@ -60,7 +60,7 @@ class VkUser(object):
                                                                        vkrequest.captcha.balance()))
 
         # enable rate limiting
-        self.rate_limit_dispatch_process = vkrequest.run_ratelimit_dispatcher()
+        self.rate_limit_dispatch_process = vkrequest.run_rate_limit_dispatcher()
 
         logger.info("Global systems initialized")
 
@@ -212,23 +212,24 @@ class VkUser(object):
 
     def process_message_global(self, message):
         try:
-            print("process_message_global, message: {}".format(message))
+            # print("process_message_global, message: {}".format(message))
             for mod in self.modules["global"]:
-                print('\tprocess message in module: {}'.format(mod))
+                # print('\tprocess message in module: {}'.format(mod))
                 self.process_message_in_module(mod, message)
         except:
             logger.exception("Error in global modules processing")
 
-    def process_message_in_module(self, module, message):
+    @staticmethod
+    def process_message_in_module(_module, message):
         # because VK wants only user_id or chat_id, and chat_id in priority
-        print("process_message_in_module, module: {}, message: {}".format(module, message))
+        # print("process_message_in_module, _module: {}, message: {}".format(_module, message))
         chat_id = message.get("chat_id", None)
         user_id = None
 
         if not chat_id:
             user_id = message.get("user_id", None)
 
-        return module.process_message(message, chat_id, user_id)
+        return _module.process_message(message, chat_id, user_id)
 
     # general processing thread: picks messages from general queue
 
@@ -253,7 +254,7 @@ class VkUser(object):
                     # pick new message
                     continue
 
-                logger.info("Sending message to parallel modules")
+                # logger.info("Sending message to parallel modules")
                 # multiply message in count of parallel module.
                 # processor will take it and use corresponding module
                 # cant pass in it the module itself, because thread obj cant be
@@ -314,11 +315,11 @@ class VkUser(object):
         if not ret:
             logger.warning("No answer for send message request")
 
-        logger.info("Sent message to c[{}]:u[{}] with attachment [{}]".format(chatid,
-                                                                              userid,
-                                                                              repr(attachments)))
+        # logger.info("Sent message to c[{}]:u[{}] with attachment [{}]".format(chatid,
+        #                                                                       userid,
+        #                                                                       repr(attachments)))
 
-        logger.info("response is {}".format(repr(ret)))
+        # logger.info("response is {}".format(repr(ret)))
         return ret
 
     def get_friends(self, fields=None, user_id=None, order='name', count=None, offset=None):
@@ -367,7 +368,8 @@ class VkUser(object):
 
         return ret
 
-    def __upload_images_vk(self, upserver, files):
+    @staticmethod
+    def __upload_images_vk(upserver, files):
         photos = []
         for f in files:
             op = requests.post
@@ -389,13 +391,13 @@ class VkUser(object):
 
     @SealMode.collect_vk_user_action_stats
     def upload_images_files(self, files):
-        logger.info("Uploading message images...")
+        # logger.info("Uploading message images...")
         op = self.api.photos.getMessagesUploadServer
         args = {}
 
         upserver = vkrequest.perform(op, args)
         ids = self.__upload_images_vk(upserver, files)
-        logger.info("Uploaded message images")
+        # logger.info("Uploaded message images")
         attachments = []
 
         for i in ids:
@@ -408,7 +410,7 @@ class VkUser(object):
                 attachments.append(
                     "photo" + str(resp[0]["owner_id"]) + "_" + str(resp[0]["id"]))
             except Exception as e:
-                logger.exception("Saving message image failed")
+                logger.exception("Saving message image failed, e:{}".format(e))
                 return None
 
         return attachments
@@ -532,7 +534,7 @@ class VkUser(object):
 
     @SealMode.collect_vk_user_action_stats
     def getRequests(self):
-        logger.info("Getting friends requests")
+        # logger.info("Getting friends requests")
         op = self.api.friends.getRequests
         args = {}
         resp = vkrequest.perform(op, args)

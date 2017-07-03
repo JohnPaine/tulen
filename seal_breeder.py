@@ -120,13 +120,15 @@ current_receiver_id = seal_breeder.receiver_id
 
 
 @IterCounter.step_counter
-def process_step(iter_counter):
+def process_step(iter_counter, time_to_sleep=1.0):
     try:
-        time.sleep(1.0)
+        time.sleep(time_to_sleep)
         seal_breeder.try_process(seal_breeder.consume_messages)
 
-        if iter_counter.counter % 20 == 0:
+        if iter_counter.counter % 40 == 0:
             seal_breeder.try_process(seal_breeder.check_alive)
+
+        if iter_counter.counter % 300 == 0:
             seal_breeder.try_process(seal_breeder.balance_seals_for_chats)
 
     except Exception as e:
@@ -137,7 +139,7 @@ def process_step(iter_counter):
 
 def process(config, mode):
     config_files = config['list_of_config_files']
-    iter_counter = IterCounter(max_count=200, raise_exception=False)
+    iter_counter = IterCounter(MANAGER_NAME, max_count=200, raise_exception=False)
 
     seal_breeder.start_seals(config_files, mode)
     seal_breeder.bind_slot('*', list(SEALS_TO_MANAGER_SLOT_MAP.keys()), seal_breeder_main_slot)

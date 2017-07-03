@@ -34,7 +34,7 @@ class Processor:
         self.user = vkuser
 
     def process_message(self, message, chatid, userid):
-        print("pixelsort, process_message")
+        # print("pixelsort, process_message")
 
         message_body = message["body"].lower()
         try:
@@ -42,7 +42,7 @@ class Processor:
             r = requests.get(photo_url)
             i = Image.open(io.BytesIO(r.content))
         except Exception as e:
-            print("pixelsort, exception: {}".format(e))
+            # print("pixelsort, exception: {}".format(e))
             return
 
         if message_body == u"сортани":
@@ -52,7 +52,7 @@ class Processor:
         else:
             return
 
-        print('pixelsort, sorted, attaching image to message')
+        # print('pixelsort, sorted, attaching image to message')
 
         msg_attachments = self.user.upload_images_files(["./files/neg.jpg", ])
 

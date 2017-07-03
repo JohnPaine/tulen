@@ -67,7 +67,7 @@ class Processor:
             r = requests.get(photo_url)
             i = Image.open(io.BytesIO(r.content))
         except Exception as e:
-            print("askii_img, exception: {}".format(e))
+            # print("askii_img, exception: {}".format(e))
             return
 
         if message_body == u"негатни":

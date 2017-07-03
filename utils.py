@@ -16,5 +16,5 @@ def load_json(filename):
 
 
 def pretty_dump(data):
-    print('pretty_dump, data: {}, type: {}'.format(data, type(data)))
+    # print('pretty_dump, data: {}, type: {}'.format(data, type(data)))
     return json.dumps(data, indent=4, separators=(',', ': '), ensure_ascii=False).encode('utf8')
