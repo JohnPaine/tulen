@@ -34,7 +34,8 @@ class IterCounter:
         self.counter += 1
         print('IterCounter: {}'.format(self.counter))
         if self.raise_exception and self.counter > self.max_count:
-            msg = "IterCounter loop limit : {} was reached for worker_id: {}".format(self.max_count, self.worker_id)
+            msg = "IterCounter loop limit : {} was reached for receiver" \
+                  "_id: {}".format(self.max_count, self.worker_id)
             print(msg)
             raise SealManagerException(msg)
 

@@ -324,10 +324,16 @@ class VkUser(object):
 
     def get_friends(self, fields=None, user_id=None, order='name', count=None, offset=None):
         operation = self.api.friends.get
-        args = {"fields": fields, "order": order, "count": count, "offset": offset, "user_id": user_id}
-        ret = vkrequest.perform(operation, args)
-        logger.info("Got friends: {}".format(ret))
-        return ret
+        args = {"fields": fields,
+                "order": order,
+                "count": count,
+                "offset": offset,
+                "user_id": user_id}
+        resp = vkrequest.perform(operation, args)
+
+        logger.info("Got friends: {}".format(resp))
+
+        return resp
 
     @SealMode.collect_vk_user_action_stats
     @SealMode.mark_action_load_balancing
@@ -616,7 +622,6 @@ class VkUser(object):
 
     @SealMode.collect_vk_user_action_stats
     def get_chat_users(self, chat_id, chat_ids=None, fields=None):
-
         op = self.api.messages.getChatUsers
         args = {"chat_id": chat_id,
                 "chat_ids": chat_ids,
@@ -642,7 +647,6 @@ class VkUser(object):
 
     @SealMode.collect_vk_user_action_stats
     def get_group_members(self, group_id, sort='id_asc', offset=None, count=None, fields=None, filter=None):
-
         op = self.api.groups.getMembers
         args = {"group_id": group_id,
                 "sort": sort,

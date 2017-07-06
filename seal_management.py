@@ -98,6 +98,7 @@ SEAL_EXCEPTION_OCCURRED_MSG_format = 'seal_id: {}, critical exception occurred: 
 REPLACE_IN_CHAT_CMD_format = 'replacing_seal_id: {}, chat_id: {}, chat_num: {}'
 CONNECT_TO_SEALS_CMD_format = 'seal_ids: {}'
 JOIN_CHAT_CMD_format = 'title: {}, admin_id: {}, replaceable_seal_id: {}, replacing_seal_id: {}'
+ADD_FRIEND_CMD_format = 'friends_source_uid: {}'
 
 LOAD_BALANCED_ACTIONS = []
 

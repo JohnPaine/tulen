@@ -4,6 +4,7 @@ from functools import reduce
 from operator import itemgetter
 
 import yaml
+import random
 
 from seal_management import *
 from seal_management_utils import *
@@ -113,6 +114,7 @@ class SealBreeder(BaseAccountManager):
         self.seals = {}
         self.SEALS_PROCESSES = []
         self.mode = BreederMode.NoMode
+        self.friends_sharing_uids = []
 
     def __enter__(self):
         print('SealBreeder.__enter__')
@@ -177,9 +179,24 @@ class SealBreeder(BaseAccountManager):
         result = ChatSealBalancing.balance_seals(self.seals, condition)
         if not result:
             return
-        print('\t\t\t->being_replaced_seal_id: {} with replacing_seal_id: {}!Message should receive the first one!\n\n'
+        print('being_replaced_seal_id: {} with replacing_seal_id: {}\n'
               .format(result.being_replaced_seal_id, result.replacing_seal_id))
         self.publish_message(REPLACE_IN_CHAT_CMD, result.being_replaced_seal_id, result.cmd_message)
+
+    def share_friends(self, seal_id=None):
+        if not len(self.friends_sharing_uids):
+            print("Can't share friends - sharing list is empty!")
+            return
+
+        friends_source_uid = random.choice(self.friends_sharing_uids)
+
+        if seal_id:
+            self.publish_message(REPLACE_IN_CHAT_CMD, seal_id,
+                                 ADD_FRIEND_CMD_format.format(friends_source_uid))
+        else:
+            for seal in self.seals:
+                self.publish_message(REPLACE_IN_CHAT_CMD, seal.seal_id,
+                                     ADD_FRIEND_CMD_format.format(friends_source_uid))
 
     @staticmethod
     def get_seal_id(config_file):

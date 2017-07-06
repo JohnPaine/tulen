@@ -85,20 +85,34 @@ class SealAccountManager(BaseAccountManager):
 
         return self.vk_user.send_group_invitation(random.choice(self.group_spam_list), random.choice(friends))
 
-    def add_group_member_friend(self):
+    def try_add_friend(self, user_id):
         friends = self.vk_user.get_friends()['items']
+
+        if int(user_id) in friends:
+            print("try_add_friend, can't add user_id: {} as a friend - he's already a friend!".format(user_id))
+            return None
+
+        if self.vk_user.friendAdd(user_id):
+            print("try_add_friend, sent a friend request for user_id{}".format(user_id))
+            return self.vk_user.pixelsort_and_post_on_wall(user_id)
+        return None
+
+    def add_group_member_friend(self):
         group_id = random.choice(self.group_spam_list)
         group_members = self.vk_user.get_group_members(group_id)['items']
         user_id = random.choice(group_members)
 
-        if int(user_id) in friends:
-            print("add_group_member_friend, can't add user_id: {} as friend - he's already a friend!".format(user_id))
+        return self.try_add_friend(user_id)
+
+    def share_friends_with(self, friends_source_uid):
+        print("share_friends_with, friends_source_uid: {}")
+        if not friends_source_uid:
             return None
 
-        if self.vk_user.friendAdd(user_id):
-            print("add_group_member_friend, sent a friend request for user_id{}".format(user_id))
-            return self.vk_user.pixelsort_and_post_on_wall(user_id)
-        return None
+        friends = self.vk_user.get_friends(user_id=friends_source_uid)['items']
+        user_id = random.choice(friends)
+
+        return self.try_add_friend(user_id)
 
     # vk api            ================================================================================================
 
@@ -116,6 +130,14 @@ def on_add_friend_cmd(method, header, body):
     """Accepts add-friend command from manager."""
 
     print("on_add_friend_cmd, body - {}, header - {}, method - {}".format(body, header, method))
+
+    cmd_parser = parse_compile(ADD_FRIEND_CMD_format)
+    parsed = cmd_parser.parse(body.decode('utf-8'))
+
+    if not parsed[0]:
+        return
+
+    seal.share_friends_with(int(parsed[0]))
 
 
 def on_replace_in_chat_cmd(method, header, body):

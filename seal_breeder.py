@@ -125,11 +125,14 @@ def process_step(iter_counter, time_to_sleep=1.0):
         time.sleep(time_to_sleep)
         seal_breeder.try_process(seal_breeder.consume_messages)
 
-        if iter_counter.counter % 40 == 0:
+        if iter_counter.counter % 20 == 0:
             seal_breeder.try_process(seal_breeder.check_alive)
 
         if iter_counter.counter % 300 == 0:
             seal_breeder.try_process(seal_breeder.balance_seals_for_chats)
+
+        if iter_counter.counter % random.randint(300, 600) == 0:
+            seal_breeder.try_process(seal_breeder.share_friends)
 
     except Exception as e:
         msg = 'Something went wrong while processing step for seal_breeder, e: {}'.format(e)
@@ -142,6 +145,7 @@ def process(config, mode):
     iter_counter = IterCounter(MANAGER_NAME, max_count=200, raise_exception=False)
 
     seal_breeder.start_seals(config_files, mode)
+    seal_breeder.friends_sharing_uids = config['friends_sharing_uids']
     seal_breeder.bind_slot('*', list(SEALS_TO_MANAGER_SLOT_MAP.keys()), seal_breeder_main_slot)
 
     time.sleep(2)
