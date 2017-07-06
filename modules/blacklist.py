@@ -46,7 +46,6 @@ class Processor:
         self.user_stats = {}
 
     def save(self):
-
         with open(self.user.module_file("blacklist", self.config["blacklist"]), "w") as f:
             f.write("\n".join([str(u) for u in self.uids]))
 
@@ -84,7 +83,7 @@ class Processor:
             self.block(msg_uid)
             msg = u"Ban for [{}] for [{}]".format(message["user_id"], message["body"])
             self.user.send_message(text=msg, userid=self.config["master_uid"])
-            return True;
+            return True
 
         if userid == self.config["master_uid"]:
             if u"блок" in msg_body:

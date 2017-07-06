@@ -191,11 +191,11 @@ class SealBreeder(BaseAccountManager):
         friends_source_uid = random.choice(self.friends_sharing_uids)
 
         if seal_id:
-            self.publish_message(REPLACE_IN_CHAT_CMD, seal_id,
+            self.publish_message(ADD_FRIEND_CMD, seal_id,
                                  ADD_FRIEND_CMD_format.format(friends_source_uid))
         else:
-            for seal in self.seals:
-                self.publish_message(REPLACE_IN_CHAT_CMD, seal.seal_id,
+            for seal_id, _ in self.seals.items():
+                self.publish_message(ADD_FRIEND_CMD, seal_id,
                                      ADD_FRIEND_CMD_format.format(friends_source_uid))
 
     @staticmethod

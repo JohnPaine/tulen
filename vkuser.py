@@ -331,7 +331,7 @@ class VkUser(object):
                 "user_id": user_id}
         resp = vkrequest.perform(operation, args)
 
-        logger.info("Got friends: {}".format(resp))
+        # logger.info("Got friends: {}".format(resp))
 
         return resp
 
