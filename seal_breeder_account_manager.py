@@ -212,8 +212,7 @@ class SealBreeder(BaseAccountManager):
     @staticmethod
     def prepare_log_file(dir_path, config_file_name, run_time):
         create_dir(dir_path)
-        # TODO: where and how we store output???
-        log_file_name = os.path.join(dir_path, str(config_file_name) + '_#{}_'.format(run_time) + '.log')
+        log_file_name = os.path.join(dir_path, str(config_file_name) + '_#_{}'.format(run_time) + '.log')
         rem_file(log_file_name)
         return log_file_name
 

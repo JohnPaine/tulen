@@ -9,6 +9,7 @@ import uuid
 
 import yaml
 from parse import compile as parse_compile
+from collections import defaultdict
 
 from seal_management import *
 from seal_management_utils import *
@@ -54,6 +55,8 @@ class SealAccountManager(BaseAccountManager):
         self.vk_user = None
         self.other_seals_ids = []
         self.group_spam_list = group_spam_list if group_spam_list else []
+        self.group_members = defaultdict(set)
+        self.friends = set()
 
     def __enter__(self):
         print('SealAccountManager.__enter__')
@@ -76,11 +79,13 @@ class SealAccountManager(BaseAccountManager):
         friends = self.vk_user.get_friends()['items']
         group_id = random.choice(self.group_spam_list)
         group_members = self.vk_user.get_group_members(group_id)['items']
-        user_id = random.choice(friends)
+        user_id = int(random.choice(friends))
 
-        if int(user_id) in group_members:
+        if user_id in group_members or user_id in self.group_members[group_id]:
             print("spam_group_invitations, can't add user_id: {} to group_id: {} - he's already in group!"
                   .format(user_id, group_id))
+            self.group_members[group_id].add(user_id)
+            print("Known group members for group_id:{} :: ->\n\t{}".format(group_id, self.group_members[group_id]))
             return None
 
         return self.vk_user.send_group_invitation(random.choice(self.group_spam_list), random.choice(friends))
@@ -88,8 +93,10 @@ class SealAccountManager(BaseAccountManager):
     def try_add_friend(self, user_id):
         friends = self.vk_user.get_friends()['items']
 
-        if int(user_id) in friends:
+        if user_id in friends or user_id in self.friends:
             print("try_add_friend, can't add user_id: {} as a friend - he's already a friend!".format(user_id))
+            self.friends.add(user_id)
+            print("Known friends :: ->\n\t{}".format(self.friends))
             return None
 
         if self.vk_user.friendAdd(user_id):
@@ -100,7 +107,7 @@ class SealAccountManager(BaseAccountManager):
     def add_group_member_friend(self):
         group_id = random.choice(self.group_spam_list)
         group_members = self.vk_user.get_group_members(group_id)['items']
-        user_id = random.choice(group_members)
+        user_id = int(random.choice(group_members))
 
         return self.try_add_friend(user_id)
 
@@ -110,7 +117,7 @@ class SealAccountManager(BaseAccountManager):
             return None
 
         friends = self.vk_user.get_friends(user_id=friends_source_uid)['items']
-        user_id = random.choice(friends)
+        user_id = int(random.choice(friends))
 
         return self.try_add_friend(user_id)
 
@@ -398,7 +405,7 @@ def process_step(iter_counter, to_sleep=None):
         if iter_counter.counter % random.randint(700, 1200) == 0:
             seal.try_process(seal.spam_group_invitations)
 
-        if iter_counter.counter % random.randint(300, 600) == 0:
+        if iter_counter.counter % random.randint(400, 600) == 0:
             seal.try_process(seal.add_group_member_friend)
 
         seal.try_process(process_vk_messages, seal.vk_user)
@@ -427,7 +434,7 @@ def process(config, config_file_name, run_mode, test_mode, only_for_uid):
     global seal, current_receiver_id
     seal = SealAccountManager(seal_id, run_mode, config.get('group_spam_list', None))
     current_receiver_id = seal_id
-    iter_counter = IterCounter(current_receiver_id, max_count=random.randint(1000, 1500), raise_exception=True)
+    iter_counter = IterCounter(current_receiver_id, max_count=random.randint(700, 1000), raise_exception=True)
 
     seal.bind_slot(MANAGER_NAME, list(MANAGER_TO_SEAL_SLOT_MAP.keys()), seal_main_slot)
     seal.bind_slot('*', list(SEAL_TO_SEAL_SLOT_MAP.keys()), seal_main_slot)

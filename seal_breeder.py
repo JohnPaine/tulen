@@ -131,7 +131,7 @@ def process_step(iter_counter, time_to_sleep=1.0):
         if iter_counter.counter % 300 == 0:
             seal_breeder.try_process(seal_breeder.balance_seals_for_chats)
 
-        if iter_counter.counter % random.randint(300, 600) == 0:
+        if iter_counter.counter % random.randint(400, 600) == 0:
             seal_breeder.try_process(seal_breeder.share_friends)
 
     except Exception as e:
