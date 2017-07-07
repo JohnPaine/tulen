@@ -3,6 +3,10 @@
 .*тупой.*:
     dict: stupid.txt
     private_use: true
+.*куда.*:
+    dict: where_to.txt
+.*когда.*:
+    dict: when.txt
 .*\Bда\Z:
     dict: yes.txt
 ^.*\Bнет:
@@ -44,3 +48,7 @@
     private_use: true
 .*почему.*:
     dict: why.txt
+.*зачем.*:
+    dict: what_for.txt
+.*где.*:
+    dict: where.txt

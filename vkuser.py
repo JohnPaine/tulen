@@ -280,26 +280,16 @@ class VkUser(object):
     # shortcuts for common-use vk-api requests
     @SealMode.collect_vk_user_action_stats
     @SealMode.mark_action_load_balancing
-    def send_message(self, text="", chatid=None, userid=None, attachments=None):
+    def send_message(self, text="", chatid=None, userid=None, attachments=None, send_sticker=False):
         if self.test_mode:
             print("test mode, printing message ---->> ", text, attachments)
             return
 
-        if not text and not attachments:
+        if not text and not attachments and not send_sticker:
             logger.critical('VK_API: cannot send empty message without attachments!')
             return None
 
-        if not attachments:
-            attachments = {}
-
         op = self.api.messages.send
-
-        # change some cirillic to latin
-        # for not to triger another tulen
-        text = text.replace(u"а", u"a")
-        text = text.replace(u"е", u"e")
-        text = text.replace(u"о", u"o")
-        text = text.replace(u"с", u"c")
 
         # to send message for username, not userid
         args = {"chat_id": chatid, "message": text, "attachment": attachments,
@@ -310,16 +300,20 @@ class VkUser(object):
         else:
             args.update({"domain": userid})
 
+        # stiker ids: 1-168, 3000 - 3007, else??? how to find these ids??
+        if send_sticker:
+            args.update({"sticker_id": random.randint(1, 168)})
+
         ret = vkrequest.perform(op, args)
 
         if not ret:
             logger.warning("No answer for send message request")
 
-        # logger.info("Sent message to c[{}]:u[{}] with attachment [{}]".format(chatid,
-        #                                                                       userid,
-        #                                                                       repr(attachments)))
+        logger.info("Sent message to c[{}]:u[{}] with attachment [{}]".format(chatid,
+                                                                              userid,
+                                                                              repr(attachments)))
 
-        # logger.info("response is {}".format(repr(ret)))
+        logger.info("response is {}".format(repr(ret)))
         return ret
 
     def get_friends(self, fields=None, user_id=None, order='name', count=None, offset=None):
