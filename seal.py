@@ -121,7 +121,7 @@ class SealAccountManager(BaseAccountManager):
 
         return self.try_add_friend(user_id)
 
-    # vk api            ================================================================================================
+        # vk api            ================================================================================================
 
 
 seal = None
@@ -215,7 +215,7 @@ def on_replace_in_chat_cmd(method, header, body):
 
             replace_in_chat(current_chat_id)
 
-    # print('\tdialog_list: {}'.format(json.dumps(dialog_list, indent=4)))
+            # print('\tdialog_list: {}'.format(json.dumps(dialog_list, indent=4)))
 
 
 def on_stop_seal_cmd(method, header, body):
@@ -326,6 +326,7 @@ def seal_main_slot(channel, method, header, body):
 
     channel.basic_ack(delivery_tag=method.delivery_tag)
 
+
 # slots:        --------------------------------------------------------------------------------------------------------
 
 
@@ -346,7 +347,11 @@ def send_action_stats():
     message = ""
     times = 0
     dialog_list = seal.vk_user.get_dialogs()
-    chat_count = len([dialog['message']['chat_id'] for dialog in dialog_list if 'chat_id' in dialog['message']])
+    if not len(dialog_list):
+        return
+
+    chat_count = len([dialog['message']['chat_id'] for dialog in dialog_list
+                      if 'message' in dialog and 'chat_id' in dialog['message']])
     for action_name, stats in seal.vk_user.action_stats.items():
         if isinstance(stats, VkUserStatsAction):
             if stats.times > 0:

@@ -34,6 +34,16 @@
     dict: love.txt
 .*ахах.*: 
     dict: dict3.txt
+.*навальн.*:
+    dict: navalny.txt
+.*нэвэльн.*:
+    dict: navalny.txt
+.*путин.*:
+    dict: puten.txt
+.*путен.*:
+    dict: puten.txt
+.*ввп.*:
+    dict: puten.txt
 .*новый.*год.*:
     dict: newyear.txt
 .*рождество.*:
