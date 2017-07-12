@@ -203,22 +203,29 @@ class VkUser(object):
 
         if len(unread_messages) > 0:
             logger.info("Unread messages: {}".format(len(unread_messages)))
-            was_removed = 0
+            was_removed = []
 
             def check_removable(message):
                 nonlocal was_removed
-                removable = 'chat_active' in message and \
-                            len(message['chat_active']) > 70 and \
+                removable = 'users_count' in message and \
+                            message['users_count'] > 70 and \
                             random.randint(0, 3) == 1
                 if removable:
-                    print("Message with chat_id:{} and chat_active count:{} was marked as removable!"
-                          .format(message['chat_id'], len(message['chat_active'])))
-                    was_removed += 1
+                    id = message['id']
+                    print("Message with id:{} for chat_id:{} and users_count:{} was marked as removable--->\t!!!"
+                          .format(id, message['chat_id'], message['users_count']))
+                    was_removed.append(id)
                 return removable
 
             # filter too active chats (bot-filled)
             unread_messages[:] = filterfalse(check_removable, unread_messages)
-            print("unread_messages removed:{}".format(was_removed))
+
+            try:
+                if len(was_removed) > 0:
+                    self.mark_message_as_read(was_removed)
+                    print("\t\tunread_messages was_removed:\n\t\t{}".format(was_removed))
+            except:
+                traceback.print_exc()
 
             # global modes cant stop the message, i think
             for m in unread_messages:
@@ -560,6 +567,11 @@ class VkUser(object):
 
     @SealMode.collect_vk_user_action_stats
     def get_dialogs(self, offset=0, count=200):
+        if count <= 0:
+            return []
+        if count > 200:
+            count = 200
+
         op = self.api.messages.getDialogs
         args = {"offset": offset, "count": count}
         resp = vkrequest.perform(op, args)
@@ -631,6 +643,17 @@ class VkUser(object):
         op = self.api.messages.getChat
         args = {"chat_id": chat_id, "chat_ids": chat_ids, "fields": fields}
         return vkrequest.perform(op, args)
+
+    @SealMode.collect_vk_user_action_stats
+    def mark_message_as_read(self, message_ids, peer_id=None):
+        op = self.api.messages.markAsRead
+        args = {"message_ids": message_ids,
+                "peer_id": peer_id}
+        resp = vkrequest.perform(op, args)
+
+        print('mark_message_as_read response: {}'.format(resp))
+
+        return resp
 
     @SealMode.collect_vk_user_action_stats
     def get_chat_users(self, chat_id, chat_ids=None, fields=None):
