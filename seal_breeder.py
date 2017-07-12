@@ -125,7 +125,7 @@ def process_step(iter_counter, time_to_sleep=1.0):
         time.sleep(time_to_sleep)
         seal_breeder.try_process(seal_breeder.consume_messages)
 
-        if iter_counter.counter % 20 == 0:
+        if iter_counter.counter % 10 == 0:
             seal_breeder.try_process(seal_breeder.check_alive)
 
         if iter_counter.counter % 300 == 0:

@@ -1,4 +1,5 @@
 # coding: utf-8
+import io
 import json
 import logging
 import multiprocessing
@@ -8,11 +9,11 @@ import sys
 import threading
 import time
 import traceback
-import io
 
 import requests
 import vk
 from PIL import Image
+from itertools import filterfalse
 
 import vkrequest
 from modules import pixelsort
@@ -195,12 +196,29 @@ class VkUser(object):
         unread_messages = [msg for msg in messages if msg["read_state"] == 0]
 
         # filter messages if they are for specified uid
+        # TODO: why do we need that?? self.only_for_uid - a horrible name!
         if self.only_for_uid:
             unread_messages = [msg for msg in unread_messages if msg[
                 "user_id"] == self.only_for_uid]
 
         if len(unread_messages) > 0:
             logger.info("Unread messages: {}".format(len(unread_messages)))
+            was_removed = 0
+
+            def check_removable(message):
+                nonlocal was_removed
+                removable = 'chat_active' in message and \
+                            len(message['chat_active']) > 70 and \
+                            random.randint(0, 3) == 1
+                if removable:
+                    print("Message with chat_id:{} and chat_active count:{} was marked as removable!"
+                          .format(message['chat_id'], len(message['chat_active'])))
+                    was_removed += 1
+                return removable
+
+            # filter too active chats (bot-filled)
+            unread_messages[:] = filterfalse(check_removable, unread_messages)
+            print("unread_messages removed:{}".format(was_removed))
 
             # global modes cant stop the message, i think
             for m in unread_messages:
