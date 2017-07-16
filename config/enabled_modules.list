@@ -11,8 +11,9 @@ googleimg
 #global like
 pixelsort
 alarm
+global dialogs
 unique censor
-unique sea_battle
+global sea_battle
 unique hangman
 #unique blackjack
 unique wiki

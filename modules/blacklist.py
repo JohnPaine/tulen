@@ -74,6 +74,7 @@ class Processor:
         save_lock.acquire()
         self.uids = [int(l.strip()) for l in open(self.user.module_file("blacklist",
                                                                         self.config["blacklist"])).readlines()]
+        self.user.black_list = self.uids
         save_lock.release()
 
         if msg_uid in self.uids and msg_uid != self.config["master_uid"]:
@@ -81,7 +82,7 @@ class Processor:
 
         if msg_body.lower() in self.config["stopwords"]:
             self.block(msg_uid)
-            msg = u"Ban for [{}] for [{}]".format(message["user_id"], message["body"])
+            msg = u"Ban user_id: {} for repeated message: {}".format(message["user_id"], message["body"])
             self.user.send_message(text=msg, userid=self.config["master_uid"])
             return True
 
@@ -93,7 +94,7 @@ class Processor:
             if u"ремув" in msg_body:
                 self.remove(int(msg_body.split()[1]))
             if u"лист" in msg_body:
-                msg = "\n".join(["[{uid}] [https://vk.com/id{uid}] https://vk.com/im?sel={uid}"
+                msg = "\n".join(["[{uid}] [https://vk.com/id{uid}]"
                                 .format(uid=uid) for uid in self.uids])
                 self.user.send_message(text=msg, userid=self.config["master_uid"])
 
@@ -110,7 +111,7 @@ class Processor:
         if user_stat.need_ban():
             self.block(msg_uid)
 
-            msg = u"Ban for [{}] for [{}]".format(message["user_id"], message["body"])
+            msg = u"Ban user_id: {} for repeated message: {}".format(message["user_id"], message["body"])
             self.user.send_message(text=msg, userid=self.config["master_uid"])
 
             user_stat.counter = 0
@@ -118,3 +119,4 @@ class Processor:
             return True
 
         self.user_stats[msg_uid] = user_stat
+        return False

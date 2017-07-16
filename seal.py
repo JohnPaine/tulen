@@ -55,8 +55,6 @@ class SealAccountManager(BaseAccountManager):
         self.vk_user = None
         self.other_seals_ids = []
         self.group_spam_list = group_spam_list if group_spam_list else []
-        self.group_members = defaultdict(set)
-        self.friends = set()
 
     def __enter__(self):
         print('SealAccountManager.__enter__')
@@ -75,53 +73,65 @@ class SealAccountManager(BaseAccountManager):
     # BaseAccountManager interface      ================================================================================
 
     # vk api            ================================================================================================
-    def spam_group_invitations(self):
+    def spam_group_invitations(self, attempts=40):
         friends = self.vk_user.get_friends()['items']
         group_id = random.choice(self.group_spam_list)
         group_members = self.vk_user.get_group_members(group_id)['items']
-        user_id = int(random.choice(friends))
 
-        if user_id in group_members or user_id in self.group_members[group_id]:
-            print("spam_group_invitations, can't add user_id: {} to group_id: {} - he's already in group!"
-                  .format(user_id, group_id))
-            self.group_members[group_id].add(user_id)
-            print("Known group members for group_id:{} :: ->\n\t{}".format(group_id, self.group_members[group_id]))
-            return None
+        while attempts > 0:
+            user_id = int(random.choice(friends))
 
-        return self.vk_user.send_group_invitation(random.choice(self.group_spam_list), random.choice(friends))
+            if user_id in group_members:
+                print("spam_group_invitations, can't add user_id: {} to group_id: {} - he's already in group!"
+                      .format(user_id, group_id))
+                attempts -= 1
+            else:
+                return self.vk_user.send_group_invitation(group_id, user_id)
 
-    def try_add_friend(self, user_id):
-        friends = self.vk_user.get_friends()['items']
+    def try_add_friend(self, user_id, friends=None):
+        if not friends:
+            friends = self.vk_user.get_friends()['items']
 
-        if user_id in friends or user_id in self.friends:
+        if user_id in friends:
             print("try_add_friend, can't add user_id: {} as a friend - he's already a friend!".format(user_id))
-            self.friends.add(user_id)
-            print("Known friends :: ->\n\t{}".format(self.friends))
-            return None
+            return False, friends
 
         if self.vk_user.friendAdd(user_id):
             print("try_add_friend, sent a friend request for user_id{}".format(user_id))
-            return self.vk_user.pixelsort_and_post_on_wall(user_id)
-        return None
+            self.vk_user.pixelsort_and_post_on_wall(user_id)
+            return True, friends
+        return False, friends
 
-    def add_group_member_friend(self):
+    def add_group_member_friend(self, attempts=10):
         group_id = random.choice(self.group_spam_list)
         group_members = self.vk_user.get_group_members(group_id)['items']
-        user_id = int(random.choice(group_members))
+        friends=None
 
-        return self.try_add_friend(user_id)
+        while attempts > 0:
+            user_id = int(random.choice(group_members))
+            success, friends = self.try_add_friend(user_id, friends)
+            if success:
+                break
 
-    def share_friends_with(self, friends_source_uid):
-        print("share_friends_with, friends_source_uid: {}")
+            attempts -= 1
+
+    def share_friends_with(self, friends_source_uid, attempts=10):
+        print("share_friends_with, friends_source_uid: {}".format(friends_source_uid))
         if not friends_source_uid:
-            return None
+            return
 
         friends = self.vk_user.get_friends(user_id=friends_source_uid)['items']
-        user_id = int(random.choice(friends))
+        current_friends = None
 
-        return self.try_add_friend(user_id)
+        while attempts > 0:
+            user_id = int(random.choice(friends))
+            success, current_friends = self.try_add_friend(user_id, current_friends)
+            if success:
+                break
 
-        # vk api            ================================================================================================
+            attempts -= 1
+
+    # vk api            ================================================================================================
 
 
 seal = None
@@ -144,7 +154,7 @@ def on_add_friend_cmd(method, header, body):
     if not parsed[0]:
         return
 
-    seal.share_friends_with(int(parsed[0]))
+    seal.share_friends_with(int(parsed[0]), 20)
 
 
 def on_replace_in_chat_cmd(method, header, body):
@@ -165,7 +175,6 @@ def on_replace_in_chat_cmd(method, header, body):
         print('seal, replace_in_chat, chat_id:{}. replacing_seal_id:{}'.format(_chat_id, replacing_seal_id))
 
         users = seal.vk_user.get_chat_users(_chat_id)
-        print('\tseal.vk_user.get_chat_users, users: {}'.format(users))
 
         if int(replacing_seal_id) in users:
             print('\tCAN\'T replace seal_id:{} with replacing_seal_id:{} in chat_id:{} - he\'s already in chat!'
@@ -176,13 +185,8 @@ def on_replace_in_chat_cmd(method, header, body):
             try:
                 seal.vk_user.add_chat_user(int(_chat_id), int(replacing_seal_id))
 
-                # TODO: send message to chat about this switch... -
-
                 chat_data = seal.vk_user.get_chat(_chat_id)
-                print('\t\treplace_in_chat, chat_data: {}'.format(chat_data))
-
                 encoded_chat_title = chat_data['title'].encode('cp1251')
-                print('\t\treplace_in_chat, encoded_chat_title: {}'.format(encoded_chat_title))
 
                 seal.publish_message_to_seal(JOIN_CHAT_CMD,
                                              replacing_seal_id,
@@ -197,6 +201,7 @@ def on_replace_in_chat_cmd(method, header, body):
                 print('Exception: {},\n\t...occurred in replacing THIS seal_id: {} with seal: {} in chat_id: {}'
                       .format(e, seal.receiver_id, replacing_seal_id, _chat_id))
                 chat_num -= 1
+                traceback.print_exc()
 
     if chat_id > 0:
         replace_in_chat(chat_id)
@@ -212,7 +217,6 @@ def on_replace_in_chat_cmd(method, header, body):
                 continue
 
             current_chat_id = message['chat_id']
-
             replace_in_chat(current_chat_id)
 
             # print('\tdialog_list: {}'.format(json.dumps(dialog_list, indent=4)))
@@ -407,7 +411,7 @@ def process_step(iter_counter, to_sleep=None):
         if iter_counter.counter % 20 == 0:
             seal.try_process(send_action_stats)
 
-        if iter_counter.counter % random.randint(700, 1200) == 0:
+        if iter_counter.counter % random.randint(650, 800) == 0:
             seal.try_process(seal.spam_group_invitations)
 
         if iter_counter.counter % random.randint(400, 600) == 0:

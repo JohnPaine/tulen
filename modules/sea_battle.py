@@ -16,7 +16,7 @@ class Processor:
         self.config = yaml.load(open(vk_user.module_file("sea_battle", CONFIG_FILE)))
         self.user = vk_user
 
-        directory = "./files/sea_battle"
+        directory = "./files/sea_battle_data_{}".format(vk_user.user_id)
         try:
             if not os.path.exists(directory):
                 os.makedirs(directory)

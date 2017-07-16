@@ -19,7 +19,6 @@ class Processor:
         self.failed_users = set()
 
     def process_message(self, message, chatid, userid):
-        # print('Add to friends, process_message mc: {} for chat_id: {}, user_id: {}'.format(self.mc, chatid, userid))
         user_id = message["user_id"]
         self.uids.add(user_id)
         self.uids.add(userid)

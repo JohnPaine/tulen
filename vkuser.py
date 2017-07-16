@@ -166,9 +166,11 @@ class VkUser(object):
         self.action_stats = {}
 
         self.config = config
+        self.black_list = []
         if only_for_uid:
             only_for_uid = int(only_for_uid)
         self.only_for_uid = only_for_uid
+        self.user_id = config['access_token']['user_id']
         self.test_mode = test_mode
         self.run_mode = run_mode
 
@@ -192,10 +194,15 @@ class VkUser(object):
 
         return messages
 
+    def check_user_in_black_list(self, user_id):
+        if not user_id or not len(self.black_list):
+            return False
+        return user_id in self.black_list
+
     def process_messages(self, messages):
         unread_messages = [msg for msg in messages if msg["read_state"] == 0]
 
-        # filter messages if they are for specified uid
+        # filter messages if they are for a specified uid
         # TODO: why do we need that?? self.only_for_uid - a horrible name!
         if self.only_for_uid:
             unread_messages = [msg for msg in unread_messages if msg[
@@ -208,11 +215,16 @@ class VkUser(object):
             def check_removable(message):
                 nonlocal was_removed
                 removable = 'users_count' in message and \
-                            message['users_count'] > 70 and \
-                            random.randint(0, 3) == 1
+                            (
+                                (message['users_count'] > 50 and random.randint(0, 10) < 3) or
+                                (message['users_count'] > 70 and random.randint(0, 10) < 5) or
+                                (message['users_count'] > 80 and random.randint(0, 10) < 6) or
+                                (message['users_count'] > 90 and random.randint(0, 10) < 7) or
+                                (message['users_count'] > 100 and random.randint(0, 10) < 8)
+                            )
                 if removable:
                     id = message['id']
-                    print("Message with id:{} for chat_id:{} and users_count:{} was marked as removable--->\t!!!"
+                    print("Message with id:{} for chat_id:{} and users_count:{} was marked as removable!"
                           .format(id, message['chat_id'], message['users_count']))
                     was_removed.append(id)
                 return removable
@@ -220,16 +232,19 @@ class VkUser(object):
             # filter too active chats (bot-filled)
             unread_messages[:] = filterfalse(check_removable, unread_messages)
 
-            try:
-                if len(was_removed) > 0:
-                    self.mark_message_as_read(was_removed)
-                    print("\t\tunread_messages was_removed:\n\t\t{}".format(was_removed))
-            except:
-                traceback.print_exc()
-
-            # global modes cant stop the message, i think
+            # global modules now also can return True meaning this messages to not be processed in other modules
+            processed = []
             for m in unread_messages:
-                self.process_message_global(m)
+                user_id = m.get("user_id", None)
+                if self.check_user_in_black_list(user_id):
+                    processed.append(m)
+                    continue
+
+                if self.process_message_global(m):
+                    processed.append(m)
+
+            # filter processed in global modules
+            unread_messages = [m for m in unread_messages if m not in processed]
 
             logger.debug("Sending messages to general queue [{}]".format(len(unread_messages)))
 
@@ -237,10 +252,10 @@ class VkUser(object):
 
     def process_message_global(self, message):
         try:
-            # print("process_message_global, message: {}".format(message))
             for mod in self.modules["global"]:
-                # print('\tprocess message in module: {}'.format(mod))
-                self.process_message_in_module(mod, message)
+                status = self.process_message_in_module(mod, message)
+                if status:
+                    return status
         except:
             logger.exception("Error in global modules processing")
 
@@ -257,7 +272,6 @@ class VkUser(object):
         return _module.process_message(message, chat_id, user_id)
 
     # general processing thread: picks messages from general queue
-
     def process_message_general(self):
 
         def process_in_unique_modules(message):
@@ -273,8 +287,7 @@ class VkUser(object):
             try:
                 message = self.msg_queue["general"].get()
 
-                # if one of the unique modules returned true, do not process
-                # message next
+                # if one of the unique modules returned true - message ain't need another processing
                 if process_in_unique_modules(message):
                     # pick new message
                     continue
@@ -567,7 +580,7 @@ class VkUser(object):
 
     @SealMode.collect_vk_user_action_stats
     def get_dialogs(self, offset=0, count=200):
-        if count <= 0:
+        if count <= 0 or offset < 0:
             return []
         if count > 200:
             count = 200
@@ -579,10 +592,9 @@ class VkUser(object):
         items = list(resp['items'])
 
         if resp['count'] > offset + count:
-            new_count = resp['count'] - (offset + count)
-            offset = count
-            print('get_dialogs, new_count: {}, new_offset: {}'.format(new_count, offset))
-            items.append(self.get_dialogs(offset, new_count))
+            offset += count
+            print('get_dialogs, new_offset: {}'.format(offset))
+            items.append(self.get_dialogs(offset, count))
 
         return items
 
