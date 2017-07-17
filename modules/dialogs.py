@@ -115,10 +115,10 @@ class DialogData:
                 return False
             if not os.path.exists(self.directory):
                 os.makedirs(self.directory)
-                os.chmod(self.directory, 0o666)
+                os.chmod(self.directory, 0o777)
             with open(data_file_name, 'w') as outfile:
                 yaml.dump(self.serialize(), outfile, default_flow_style=True)
-                os.chmod(data_file_name, 0o666)
+                os.chmod(data_file_name, 0o777)
                 return True
         except Exception as e:
             print("Exception occurred while saving dialogs data: {}".format(e))
@@ -228,7 +228,7 @@ class DialogData:
             start_without_words = dialog_pattern.get("start_without_starter_words", False)
             if not start_without_words:
                 continue
-            if random.randint(0, 100) > 5:
+            if random.randint(0, 33) != 10:
                 continue
             return self.start_dialog(uid, chat_id, random.choice(list(self.config)), message)
 
