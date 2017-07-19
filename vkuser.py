@@ -206,15 +206,16 @@ class VkUser(object):
         self.rate_limit_dispatch_process = None
         self.action_stats = {}
 
-        self.settings = VkUserSettings(self)
-        self.settings.load_settings()
-
         self.config = config
         self.black_list = []
         if only_for_uid:
             only_for_uid = int(only_for_uid)
         self.only_for_uid = only_for_uid
+        
         self.user_id = config['access_token']['user_id']
+        self.settings = VkUserSettings(self)
+        self.settings.load_settings()
+
         self.test_mode = test_mode
         self.run_mode = run_mode
 
