@@ -5,6 +5,14 @@
     private_use: true
 .*куда.*:
     dict: where_to.txt
+.*молодец.*:
+    dict: good_boy.txt
+.*умни(чк|ц)а.*:
+    dict: good_boy.txt
+.*молодчинк?а.*:
+    dict: good_boy.txt
+.*\Bты крутой.*:
+    dict: good_boy.txt
 .*когда.*:
     dict: when.txt
 .*\Bда\Z:

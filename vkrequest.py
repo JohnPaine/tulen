@@ -21,6 +21,7 @@ logger = logging.getLogger("seal")
 def create_dir(path):
     if not os.path.exists(path):
         os.makedirs(path)
+        os.chmod(path, 0o777)
 
 
 class Captcha2Captcha:

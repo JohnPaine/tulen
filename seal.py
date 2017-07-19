@@ -102,7 +102,7 @@ class SealAccountManager(BaseAccountManager):
             return True, friends
         return False, friends
 
-    def add_group_member_friend(self, attempts=10):
+    def add_group_member_friend(self, attempts=30):
         group_id = random.choice(self.group_spam_list)
         group_members = self.vk_user.get_group_members(group_id)['items']
         friends=None
@@ -411,7 +411,7 @@ def process_step(iter_counter, to_sleep=None):
         if iter_counter.counter % 20 == 0:
             seal.try_process(send_action_stats)
 
-        if iter_counter.counter % random.randint(650, 800) == 0:
+        if iter_counter.counter % random.randint(500, 650) == 0:
             seal.try_process(seal.spam_group_invitations)
 
         if iter_counter.counter % random.randint(400, 600) == 0:

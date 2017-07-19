@@ -8,15 +8,15 @@ vkvideo
 vkdocs
 help
 googleimg
-#global like
 pixelsort
 alarm
+#global like
 global dialogs
-unique censor
 global sea_battle
+#global blackjack
+global add_to_friends
+unique censor
 unique hangman
-#unique blackjack
 unique wiki
 unique captcha_balance
-global add_to_friends
 unique who

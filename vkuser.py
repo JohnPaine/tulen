@@ -9,11 +9,11 @@ import sys
 import threading
 import time
 import traceback
+from itertools import filterfalse
 
 import requests
 import vk
 from PIL import Image
-from itertools import filterfalse
 
 import vkrequest
 from modules import pixelsort
@@ -37,6 +37,46 @@ ids = ids.substr(0,ids.length-1);
 API.messages.markAsRead({"message_ids":ids});
 
 return messages;"""
+
+
+def load_json(filename):
+    try:
+        data = json.load(open(filename))
+    except:
+        traceback.print_exc()
+        return None
+    return data
+
+
+def try_get_data(data, key, default=None):
+    try:
+        return data[key]
+    except:
+        traceback.print_exc()
+        return default
+
+
+class VkUserSettings:
+    def __init__(self, vk_user):
+        self.vk_user = vk_user
+        self.users_on_wall = set()
+        self.directory = "./api_settings"
+        self.settings_file_name = self.directory + "/vk_user_settings_{}.json".format(vk_user.user_id)
+
+    def save_settings(self):
+        vkrequest.create_dir(self.directory)
+
+        with io.open(self.settings_file_name, 'w', encoding='utf-8') as f:
+            f.write(str(json.dumps({
+                "users_on_wall": self.users_on_wall
+            }, ensure_ascii=False, indent=4, separators=(',', ': '))))
+            os.chmod(self.settings_file_name, 0o777)
+
+    def load_settings(self):
+        if not os.path.isfile(self.settings_file_name):
+            return
+        data = load_json(self.settings_file_name)
+        self.users_on_wall = try_get_data(data, "users_on_wall", set())
 
 
 class VkUser(object):
@@ -157,6 +197,7 @@ class VkUser(object):
         for thread in self.msg_processors['parallel']:
             thread.do_run = False
             thread.join(5)
+        self.settings.save_settings()
 
     def __init__(self, config, test_mode, run_mode, only_for_uid):
         self.modules = {"global": [], "unique": [], "parallel": []}
@@ -164,6 +205,9 @@ class VkUser(object):
         self.msg_queue = {}
         self.rate_limit_dispatch_process = None
         self.action_stats = {}
+
+        self.settings = VkUserSettings(self)
+        self.settings.load_settings()
 
         self.config = config
         self.black_list = []
@@ -709,6 +753,10 @@ class VkUser(object):
 
     @SealMode.collect_vk_user_action_stats
     def pixelsort_and_post_on_wall(self, user_id):
+        if user_id in self.settings.users_on_wall:
+            print("Won't add user_id: {} on wall - he's already there!".format(user_id))
+            return
+
         user = self.getUser(user_id, "photo_max_orig", name_case="Nom")
         photo_url = user["photo_max_orig"]
         r = requests.get(photo_url)
@@ -722,3 +770,4 @@ class VkUser(object):
         wall_attachments = self.upload_images_files_wall([img_file, ])
         self.post(u"Привет, {} {}".format(user["first_name"], user["last_name"]), attachments=wall_attachments,
                        chatid=None, userid=user_id)
+        self.settings.users_on_wall.add(user_id)

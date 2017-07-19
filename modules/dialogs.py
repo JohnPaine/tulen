@@ -210,7 +210,7 @@ class DialogData:
 
         return True
 
-    def start_dialog(self, uid, chat_id, dialog_pattern_id, message):
+    def start_dialog(self, uid, chat_id, dialog_pattern_id):
         stage_num = 1
         return self.launch_message_for_stage(uid, chat_id, stage_num, dialog_pattern_id)
 
@@ -223,14 +223,15 @@ class DialogData:
                 for word in starter_words:
                     pattern_object = re.compile(word, flags=re.IGNORECASE | re.UNICODE)
                     if pattern_object.match(msg):
-                        return self.start_dialog(uid, chat_id, dialog_pattern_id, message)
+                        return self.start_dialog(uid, chat_id, dialog_pattern_id)
 
             start_without_words = dialog_pattern.get("start_without_starter_words", False)
             if not start_without_words:
                 continue
-            if random.randint(0, 33) != 10:
+            # ought to be very small possibility
+            if random.randint(0, 100) != 42:
                 continue
-            return self.start_dialog(uid, chat_id, random.choice(list(self.config)), message)
+            return self.start_dialog(uid, chat_id, random.choice(list(self.config)))
 
         return False
 
