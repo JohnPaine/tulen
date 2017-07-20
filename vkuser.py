@@ -91,7 +91,8 @@ class VkUserSettings:
         if not os.path.isfile(self.settings_file_name):
             return
         data = load_json(self.settings_file_name)
-        self.users_on_wall = try_get_data(data, "users_on_wall", set())
+        self.users_on_wall = set(try_get_data(data, "users_on_wall", set()))
+        print("users_on_wall: {}".format(self.users_on_wall))
 
 
 class VkUser(object):
