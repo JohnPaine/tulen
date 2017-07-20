@@ -15,6 +15,8 @@ import requests
 import vk
 from PIL import Image
 
+import pickle
+
 import vkrequest
 from modules import pixelsort
 from seal_management import SealMode
@@ -39,9 +41,22 @@ API.messages.markAsRead({"message_ids":ids});
 return messages;"""
 
 
+class PythonObjectEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, (list, dict, str, int, float, bool, type(None))):
+            return json.JSONEncoder.default(self, obj)
+        return {'_python_object': pickle.dumps(obj)}
+
+
+def as_python_object(dct):
+    if '_python_object' in dct:
+        return pickle.loads(str(dct['_python_object']))
+    return dct
+
+
 def load_json(filename):
     try:
-        data = json.load(open(filename))
+        data = json.load(open(filename), object_hook=as_python_object)
     except:
         traceback.print_exc()
         return None
@@ -67,9 +82,9 @@ class VkUserSettings:
         vkrequest.create_dir(self.directory)
 
         with io.open(self.settings_file_name, 'w', encoding='utf-8') as f:
-            f.write(str(json.dumps({
-                "users_on_wall": self.users_on_wall
-            }, ensure_ascii=False, indent=4, separators=(',', ': '))))
+            f.write(json.dumps({
+                "users_on_wall": list(self.users_on_wall)
+            }, ensure_ascii=False, indent=4, separators=(',', ': ')))
             os.chmod(self.settings_file_name, 0o777)
 
     def load_settings(self):
@@ -117,7 +132,7 @@ class VkUser(object):
             if not self.my_uid:
                 raise RuntimeError("Access config: user_id not defined")
 
-            self.api = vk.API(session, v='5.50', timeout=timeout)
+            self.api = vk.API(session, v='5.67', timeout=timeout)
 
             logger.info("VK Session: real mode [{}]".format(self.my_uid))
 
@@ -211,7 +226,7 @@ class VkUser(object):
         if only_for_uid:
             only_for_uid = int(only_for_uid)
         self.only_for_uid = only_for_uid
-        
+
         self.user_id = config['access_token']['user_id']
         self.settings = VkUserSettings(self)
         self.settings.load_settings()
@@ -253,47 +268,51 @@ class VkUser(object):
             unread_messages = [msg for msg in unread_messages if msg[
                 "user_id"] == self.only_for_uid]
 
-        if len(unread_messages) > 0:
-            logger.info("Unread messages: {}".format(len(unread_messages)))
-            was_removed = []
+        if not len(unread_messages):
+            return
 
-            def check_removable(message):
-                nonlocal was_removed
-                removable = 'users_count' in message and \
-                            (
-                                (message['users_count'] > 50 and random.randint(0, 10) < 3) or
-                                (message['users_count'] > 70 and random.randint(0, 10) < 5) or
-                                (message['users_count'] > 80 and random.randint(0, 10) < 6) or
-                                (message['users_count'] > 90 and random.randint(0, 10) < 7) or
-                                (message['users_count'] > 100 and random.randint(0, 10) < 8)
-                            )
-                if removable:
-                    id = message['id']
-                    print("Message with id:{} for chat_id:{} and users_count:{} was marked as removable!"
-                          .format(id, message['chat_id'], message['users_count']))
-                    was_removed.append(id)
-                return removable
+        logger.info("Unread messages: {}".format(len(unread_messages)))
+        was_removed = []
 
-            # filter too active chats (bot-filled)
-            unread_messages[:] = filterfalse(check_removable, unread_messages)
+        def check_removable(message):
+            nonlocal was_removed
+            removable = 'users_count' in message and \
+                        (
+                            (message['users_count'] > 50 and random.randint(0, 10) < 3) or
+                            (message['users_count'] > 70 and random.randint(0, 10) < 5) or
+                            (message['users_count'] > 80 and random.randint(0, 10) < 6) or
+                            (message['users_count'] > 90 and random.randint(0, 10) < 7) or
+                            (message['users_count'] > 100 and random.randint(0, 10) < 8)
+                        )
+            if removable:
+                id = message['id']
+                print("Message with id:{} for chat_id:{} and users_count:{} was marked as removable!"
+                      .format(id, message['chat_id'], message['users_count']))
+                was_removed.append(id)
+            return removable
 
-            # global modules now also can return True meaning this messages to not be processed in other modules
-            processed = []
-            for m in unread_messages:
-                user_id = m.get("user_id", None)
-                if self.check_user_in_black_list(user_id):
-                    processed.append(m)
-                    continue
+        # filter too active chats (bot-filled)
+        unread_messages[:] = filterfalse(check_removable, unread_messages)
 
-                if self.process_message_global(m):
-                    processed.append(m)
+        # global modules now also can return True meaning this messages to not be processed in other modules
+        processed = []
+        for m in unread_messages:
+            user_id = m.get("user_id", None)
+            if self.check_user_in_black_list(user_id):
+                processed.append(m)
+                continue
 
-            # filter processed in global modules
-            unread_messages = [m for m in unread_messages if m not in processed]
+            if self.process_message_global(m):
+                processed.append(m)
 
-            logger.debug("Sending messages to general queue [{}]".format(len(unread_messages)))
+        # filter processed in global modules
+        unread_messages = [m for m in unread_messages if m not in processed]
 
-            [self.msg_queue["general"].put(message) for message in unread_messages]
+        logger.debug("Sending messages to general queue [{}]".format(len(unread_messages)))
+
+        [self.msg_queue["general"].put(message) for message in unread_messages]
+
+        self.settings.save_settings()
 
     def process_message_global(self, message):
         try:
