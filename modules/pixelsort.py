@@ -1,14 +1,12 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
-import random
 # from io import StringIO
 import io
+import random
 
 import requests
 from PIL import Image
-import traceback
-import numpy
 
 
 # logger = logging.getLogger("tulen.pixelsort")
