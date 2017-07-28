@@ -2,4 +2,6 @@ friends_sharing_uids:
     - 409873063       # sealdeath
 
 list_of_config_files:
-    - "access_seal4.yaml"
+    - "access_seal1.yaml"
+    - "access_seal2.yaml"
+    - "access_seal3.yaml"
