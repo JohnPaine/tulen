@@ -1,5 +1,6 @@
 #dump_photos
 unique blacklist
+#global module_disabler
 ascii_img
 approve
 reply

@@ -87,14 +87,15 @@ class Processor:
             return True
 
         if userid == self.config["master_uid"]:
-            if u"блок" in msg_body:
+            if u"заблокируй" in msg_body:
                 self.block(int(msg_body.split()[1]))
-            if u"бан" in msg_body:
+            if u"забань" in msg_body:
                 self.block(int(msg_body.split()[1]))
-            if u"ремув" in msg_body:
+            if u"разбань" in msg_body:
                 self.remove(int(msg_body.split()[1]))
-            if u"лист" in msg_body:
-                msg = "\n".join(["[{uid}] [https://vk.com/id{uid}]"
+            if u"бан-лист" in msg_body:
+                msg = "Ban-list count: {}".format(len(self.uids))
+                msg += "\n".join(["[{uid}] [https://vk.com/id{uid}]"
                                 .format(uid=uid) for uid in self.uids])
                 self.user.send_message(text=msg, userid=self.config["master_uid"])
 
