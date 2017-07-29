@@ -160,7 +160,18 @@ class SealBreeder(BaseAccountManager):
         seal_process = SealBreeder.start_seal(config_file_name, log_file_name, self.mode)
         self.register_seal(seal_id, seal_process, config_file_name, start_counter)
 
-    def check_alive(self):
+    @staticmethod
+    def git_pull_repo():
+        print("Pulling changes from git repo")
+        try:
+            subprocess.call(["git", "pull"])
+        except Exception as e:
+            print("Something went wrong during git pull cmd execution: {}".format(e))
+            traceback.print_exc()
+
+    def check_alive(self, iter_counter):
+        if iter_counter % 100 == 0:
+            self.git_pull_repo()
         print('Seal breeder checking seals for running')
         for seal_id, seal_config in self.seals.items():
             if seal_config.process.poll() is None:
