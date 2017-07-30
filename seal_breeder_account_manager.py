@@ -169,14 +169,16 @@ class SealBreeder(BaseAccountManager):
             print("Something went wrong during git pull cmd execution: {}".format(e))
             traceback.print_exc()
 
-    def check_alive(self, iter_counter):
-        if iter_counter % 100 == 0:
-            self.git_pull_repo()
+    def check_alive(self):
+        pulled = False
         print('Seal breeder checking seals for running')
         for seal_id, seal_config in self.seals.items():
             if seal_config.process.poll() is None:
                 continue
 
+            if not pulled:
+                pulled = True
+                self.git_pull_repo()
             self.start_seal_process(seal_id, seal_config.config_file_name)
 
     def start_seals(self, config_files, mode):

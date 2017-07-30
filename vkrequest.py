@@ -102,7 +102,7 @@ def run_rate_limit_dispatcher():
 
 
 # this method can be triggered only N times per second. (per thread/process)
-@rate_limit_operation(1.0)
+@rate_limit_operation(2.0)
 def set_event():
     try:
         RATED_LOCK.release()

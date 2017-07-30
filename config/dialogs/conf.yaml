@@ -1,8 +1,8 @@
 dialog_1:
     dialog_starter_words_regexps:
         - .*тюлень,? расс?кажи [ао]не[кг]дот.*
-        - .*тюлень,? как дела.*
-        - .*[ао]не[кг]дот.*
+        - .*тюлень,? д[оа]вай [ао]не[кг]дот.*
+        - .*тюлень,? х[оа]чу [ао]не[кг]дот.*
     start_without_starter_words: True
     stage_1_launcher_messages:
         - кому анекдот?
