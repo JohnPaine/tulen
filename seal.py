@@ -64,12 +64,10 @@ class SealAccountManager(BaseAccountManager):
         print('SealAccountManager.__exit__')
 
     # BaseAccountManager interface      ================================================================================
-    @staticmethod
-    def publish_message_to_seal(signal, receiver_id, message=''):
+    def publish_message_to_seal(self, signal, receiver_id, message=''):
         super().publish_message(signal, receiver_id, message)
 
-    @staticmethod
-    def publish_message_to_manager(signal, message=''):
+    def publish_message_to_manager(self, signal, message=''):
         super().publish_message(signal, MANAGER_NAME, message)
 
     # BaseAccountManager interface      ================================================================================
