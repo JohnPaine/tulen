@@ -229,7 +229,7 @@ class DialogData:
             if not start_without_words:
                 continue
             # ought to be very small possibility
-            if random.randint(0, 300) != 42:
+            if random.randint(0, 1000) != 42:
                 continue
             return self.start_dialog(uid, chat_id, random.choice(list(self.config)))
 

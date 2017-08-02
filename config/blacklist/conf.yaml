@@ -15,7 +15,7 @@ unban_message: |
 master_uid: 52100328
 
 warning_limit: 9
-ban_limit: 17
+ban_limit: 15
 decrement: 1
 
 stopwords: 
