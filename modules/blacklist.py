@@ -89,7 +89,7 @@ class Processor:
             self.user.send_message(text=msg, userid=self.config["master_uid"])
             return True
 
-        if userid == self.config["master_uid"]:
+        if userid == self.config["master_uid"] or msg_uid == self.config["master_uid"]:
             if u"заблокируй" in msg_body:
                 self.block(int(msg_body.split()[1]))
             if u"забань" in msg_body:
