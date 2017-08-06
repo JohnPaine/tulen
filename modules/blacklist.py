@@ -107,7 +107,9 @@ class Processor:
                         msg += "]"
                     else:
                         msg += ", ".join(["{uid}".format(uid=uid) for uid in self.uids[i:i + to_print]])
+                        msg += ", "
                     self.user.send_message(text=msg, userid=self.config["master_uid"])
+                    msg = ""
 
         user_stat = self.user_stats.get(msg_uid, UserStat(msg_uid,
                                                           self.config["warning_limit"],
