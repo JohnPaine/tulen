@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import yaml
+import traceback
 
 CONFIG_FILE = "conf.yaml"
 from multiprocessing import Lock
@@ -64,11 +65,11 @@ class Processor:
         self.uids = [int(l.strip()) for l in open(self.user.module_file("blacklist",
                                                                         self.config["blacklist"])).readlines()]
         self.uids.remove(uid)
+        self.save()
+        save_lock.release()
         self.user.send_message(text=self.config["unban_message"], userid=uid)
         self.user.send_message(text=self.config["unban_message"] + " - for uid: {}".format(uid),
                                userid=self.config["master_uid"])
-        self.save()
-        save_lock.release()
 
     def process_message(self, message, chatid, userid):
         msg_uid = int(message["user_id"])
@@ -97,9 +98,16 @@ class Processor:
             if u"разбань" in msg_body:
                 self.remove(int(msg_body.split()[1]))
             if u"бан-лист" in msg_body:
+                to_print = 350
                 msg = "Ban-list count: {};\n".format(len(self.uids))
-                msg += "list: [{}]".format(", ".join(["{uid}".format(uid=uid) for uid in self.uids]))
-                self.user.send_message(text=msg, userid=self.config["master_uid"])
+                msg += "list:["
+                for i in range(0, len(self.uids), to_print):
+                    if i + to_print >= len(self.uids):
+                        msg += ", ".join(["{uid}".format(uid=uid) for uid in self.uids[i:]])
+                        msg += "]"
+                    else:
+                        msg += ", ".join(["{uid}".format(uid=uid) for uid in self.uids[i:i + to_print]])
+                    self.user.send_message(text=msg, userid=self.config["master_uid"])
 
         user_stat = self.user_stats.get(msg_uid, UserStat(msg_uid,
                                                           self.config["warning_limit"],
