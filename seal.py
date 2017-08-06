@@ -443,7 +443,7 @@ def process(config, config_file_name, run_mode, test_mode, only_for_uid):
     global seal, current_receiver_id
     seal = SealAccountManager(seal_id, run_mode, config.get('group_spam_list', None))
     current_receiver_id = seal_id
-    iter_counter = IterCounter(current_receiver_id, max_count=random.randint(700, 1000), raise_exception=True)
+    iter_counter = IterCounter(current_receiver_id, max_count=random.randint(1200, 1500), raise_exception=True)
 
     seal.bind_slot(MANAGER_NAME, list(MANAGER_TO_SEAL_SLOT_MAP.keys()), seal_main_slot)
     seal.bind_slot('*', list(SEAL_TO_SEAL_SLOT_MAP.keys()), seal_main_slot)

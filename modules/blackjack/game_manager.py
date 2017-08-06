@@ -1,30 +1,67 @@
-#!/usr/bin/python
-# -*- coding: utf-8 -*-
-
-from collections import namedtuple, defaultdict
-import io
-import json
-import random
-import yaml
-from .blackjack import *
+from .game_context import *
 
 
-def load_json(filename):
-    try:
-        data = json.load(open(filename))
-    except:
-        return None
-    return data
+PATH_TO_CONTEXT = "./files/blackjack_{}/game_context_for_id_{}"
+CONFIG_FILE = "conf.yaml"
 
 
-class Processor:
-    def __init__(self, vk_user):
-        self.exclusive = True
-        self.config = yaml.load(open(vk_user.module_file("blackjack", CONFIG_FILE)))
-        self.vk_user = vk_user
+REACT_ON_cmd = u"тюлень, хотим в блэкджек"
+DEPOSIT_REQUEST_cmd = u"мой депозит"
+TAKE_CARD_cmd = u"карту"
+HOLD_cmd = u"хватит"
+BET_ON_cmd = u"ставлю на"
 
-        self.game_context = None
-        self.game_context_path = ""
+
+class GameManager:
+    def __init__(self):
+        pass
+
+    def __call__(self, message, uid, chat_id):
+        if not uid:
+            uid = message["user_id"]
+
+        # self.uid = uid
+        # self.chat_id = chat_id
+        # self.load()
+        #
+        # team_name = self.get_team_name()
+        # op_team_name = self.get_opponent_name(team_name)
+        # op_cap_uid = self.get_team_cap_uid(op_team_name)
+        # self.game_context = GameContext(uid, self.max_score, self.directory, self.is_bot_game(), team_name, uid,
+        #                                 op_team_name, op_cap_uid)
+        # if team_name and not self.game_context.this_team:
+        #     self.game_context.this_team = self.game_context.create_team(team_name, self.uid)
+        #
+        # if self.check_winner():
+        #     self.stop_game_session()
+
+        return self
+
+    def __enter__(self):
+        pass
+        # self.lock.acquire()
+
+    def __exit__(self, _type, _value, _traceback):
+        pass
+        # self.process_bot_turn()
+        # if self.check_winner():
+        #     self.stop_game_session()
+        # self.save()
+        # self.game_context.save()
+        # self.lock.release()
+
+    def on_start_game_message(self, message):
+        pass
+
+    def on_deposit_info_message(self, message):
+        pass
+
+
+    @staticmethod
+    def get_id(user_id, chat_id):
+        if not chat_id:
+            return user_id
+        return -1 * chat_id
 
     def take_cards(self, player):
         # TODO: maybe we should refill the stack after the third of cards is gone??
@@ -274,50 +311,3 @@ class Processor:
 
         self.game_context_path = PATH_TO_CONTEXT.format(self.vk_user.user_id, game_id)
         self.game_context = load_json(self.game_context_path)
-
-    def process_message(self, message, chat_id, user_id):
-
-        message_body = message["body"].lower().strip()
-        self.load_game_context(user_id, chat_id)
-        # in chat game user_id would be empty, but not in the message
-        player_id = message["user_id"]
-
-        if message_body.startswith(self.config["react_on"]):
-            self.start_new_game(self.get_id(user_id, chat_id))
-            self.save_context()
-            self.vk_user.send_message(text=self.generate_message(), chatid=chat_id, userid=user_id)
-            return True
-
-        if message_body.startswith(u"мой депозит"):
-            self.save_context()
-            self.vk_user.send_message(self.get_deposit(player_id), chatid=chat_id, userid=user_id)
-            return True
-
-        if not self.game_context["session_started"]:
-            return False
-
-        if message_body.startswith(u"карту"):
-            for i in self.game_context["bender_bets"]:
-                if message["user_id"] == i[0]:
-                    self.vk_user.send_message(u"Вы поставили на тюленя, не мешайте игре", chatid=chat_id, userid=user_id)
-                    return True
-
-            self.take_cards()
-            text = self.generate_message()
-            self.save_context()
-            self.vk_user.send_message(text=text, chatid=chat_id, userid=user_id)
-            return True
-
-        if message_body.startswith(u"хватит"):
-            for i in self.game_context["bender_bets"]:
-                if message["user_id"] == i[0]:
-                    self.vk_user.send_message(u"Вы поставили на тюленя, не мешайте игре", chatid=chat_id, userid=user_id)
-                    return True
-
-            text = self.generate_message(finish=True)
-            self.save_context()
-
-            self.vk_user.send_message(text, chatid=chat_id, userid=user_id)
-            return True
-
-        return self.try_process_bet_on_player(message_body, chat_id, user_id, message["user_id"])
