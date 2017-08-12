@@ -40,17 +40,17 @@
     dict: love.txt
 .*люблю.*тебя.*:
     dict: love.txt
-.*ахах.*: 
+.*а[ха]х.*:
     dict: dict3.txt
 .*навальн.*:
     dict: navalny.txt
 .*нэвэльн.*:
     dict: navalny.txt
-.*путин.*:
+.*[\s^]путин.*:
     dict: puten.txt
-.*путен.*:
+.*[\s^]путен.*:
     dict: puten.txt
-.*ввп.*:
+.*[\s^]ввп.*:
     dict: puten.txt
 .*новый.*год.*:
     dict: newyear.txt
@@ -64,9 +64,13 @@
 .*что.*делае.*:
     dict: doing.txt
     private_use: true
-.*почему.*:
+.*[\s^]почему.*:
     dict: why.txt
-.*зачем.*:
+.*[\s^]зачем.*:
     dict: what_for.txt
-.*где.*:
+.*[\s^][гх]де.*:
     dict: where.txt
+.*[\s^]гоу?\s.*:
+    dict: go_to.txt
+.*[\s^]репорт\s.*:
+    dict: report.txt
