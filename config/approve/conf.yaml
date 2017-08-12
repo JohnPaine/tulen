@@ -74,3 +74,5 @@
     dict: go_to.txt
 .*[\s^]репорт\s.*:
     dict: report.txt
+.*дот[аук].*:
+    dict: dota.txt
