@@ -1,6 +1,6 @@
 #dump_photos
+global censor
 unique blacklist
-unique censor
 #global module_disabler
 ascii_img
 approve
