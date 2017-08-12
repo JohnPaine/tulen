@@ -1,5 +1,6 @@
 #dump_photos
 unique blacklist
+unique censor
 #global module_disabler
 ascii_img
 approve
@@ -16,7 +17,6 @@ global dialogs
 global sea_battle
 #global blackjack
 global add_to_friends
-unique censor
 unique hangman
 unique wiki
 unique captcha_balance
