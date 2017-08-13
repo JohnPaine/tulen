@@ -15,9 +15,9 @@
     dict: good_boy.txt
 .*(\s|^)когда.*:
     dict: when.txt
-(\s|^)да(\s|$):
+.*(\s|^)да(\s|$):
     dict: yes.txt
-(\s|^)нет(\s|$):
+.*(\s|^)нет(\s|$):
     dict: no.txt
 .*тюлен.*что.*думаеш.*:
     dict: opinions_think.txt
