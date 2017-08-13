@@ -1,23 +1,23 @@
-.*аниме.*:
+.*(\s|^)аниме.*:
     dict: anime.txt
-.*тупой.*:
+.*(\s|^)тупой.*:
     dict: stupid.txt
     private_use: true
-.*куда.*:
+.*(\s|^)куда.*:
     dict: where_to.txt
-.*молодец.*:
+.*(\s|^)молодец.*:
     dict: good_boy.txt
-.*умни(чк|ц)а.*:
+.*(\s|^)умни(чк|ц)а.*:
     dict: good_boy.txt
-.*молодчинк?а.*:
+.*(\s|^)молодчинк?а.*:
     dict: good_boy.txt
-.*\Bты крутой.*:
+.*(\s|^)ты крутой.*:
     dict: good_boy.txt
-.*когда.*:
+.*(\s|^)когда.*:
     dict: when.txt
-.*\Bда\Z:
+(\s|^)да(\s|$):
     dict: yes.txt
-^.*\Bнет:
+(\s|^)нет(\s|$):
     dict: no.txt
 .*тюлен.*что.*думаеш.*:
     dict: opinions_think.txt
@@ -27,30 +27,30 @@
     dict: opinions_think.txt
     unique: true
     private_use: true
-.*как.*дела.*:
+.*(\s|^)как.*(\s|^)дела.*:
     dict: howyoudoing.txt
     private_use: true
 .*расскажи.*о.*себе.*:
     dict: my_life.txt
     private_use: true
 .*тюлен.*:
-    dict: dict.txt
+    dict: dict_general.txt
     private_use: true
 .*тюлень.*я.*тебя.*люблю.*:
     dict: love.txt
 .*люблю.*тебя.*:
     dict: love.txt
 .*а[ха]х.*:
-    dict: dict3.txt
-.*навальн.*:
+    dict: dict_rofl.txt
+.*(\s|^)навальн.*:
     dict: navalny.txt
-.*нэвэльн.*:
+.*(\s|^)нэвэльн.*:
     dict: navalny.txt
-.*[\s^]путин.*:
+.*(\s|^)путин.*:
     dict: puten.txt
-.*[\s^]путен.*:
+.*(\s|^)путен.*:
     dict: puten.txt
-.*[\s^]ввп.*:
+.*(\s|^)ввп.*:
     dict: puten.txt
 .*новый.*год.*:
     dict: newyear.txt
@@ -61,18 +61,18 @@
     private_use: true
 \Bбот:
     dict: bot.txt
-.*что.*делае.*:
+.*(\s|^)что.*(\s|^)делае.*:
     dict: doing.txt
     private_use: true
-.*[\s^]почему.*:
+.*(\s|^)почему.*:
     dict: why.txt
-.*[\s^]зачем.*:
+.*(\s|^)зачем.*:
     dict: what_for.txt
-.*[\s^][гх]де.*:
+.*(\s|^)[гх]де.*:
     dict: where.txt
-.*[\s^]гоу?\s.*:
+.*(\s|^)гоу?\s.*:
     dict: go_to.txt
-.*[\s^]репорт\s.*:
+.*(\s|^)репорт\s.*:
     dict: report.txt
-.*дот[аук].*:
+.*(\s|^)дот[аук].*:
     dict: dota.txt
