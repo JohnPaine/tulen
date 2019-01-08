@@ -128,7 +128,7 @@ def update_minfo(method, type, incr):
     if not hasattr(method, '_method_name'):
         return
 
-    method_name = method._method_name
+    method_name = str(method._method_name)
     create_dir("./files")
     with JSON_LOCK:
         json_obj = utils.load_json("./files/minfo.json")
